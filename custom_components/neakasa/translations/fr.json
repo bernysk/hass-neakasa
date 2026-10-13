@@ -30,7 +30,7 @@
         "abort": {
             "authentication": "Erreur lors de l'authentification.",
             "connection": "Erreur lors de la connexion.",
-            "unknown": "Erreur inconnue"
+            "unknown": "Erreur inconnue",
             "no_devices_found": "Aucune litière trouvée pour ce compte.",
             "reauth_successful": "Ré-authentication réussie.",
             "reconfigure_successful": "Reconfiguration réussie."

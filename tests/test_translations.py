@@ -7,7 +7,7 @@ from pathlib import Path
 
 TRANSLATIONS_DIR = Path("custom_components/neakasa/translations")
 
-EXPECTED_FILES = sorted(["en.json", "de.json", "pl.json"])
+EXPECTED_FILES = sorted(["en.json", "de.json", "fr.json", "pl.json"])
 
 
 def _load_json(path: Path) -> dict:
