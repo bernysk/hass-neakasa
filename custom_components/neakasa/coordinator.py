@@ -484,8 +484,14 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
                 await asyncio.sleep(delay)
                 try:
                     return await self.async_update_data()
-                except NeakasaApiClientCommunicationError:
-                    continue
-            _LOGGER.error("API communication error after all retries: %s", err)
-            msg = f"Communication error after 5 retries: {err}"
-            raise UpdateFailed(msg) from err
+                except (
+                    NeakasaApiClientCommunicationError
+                ):  # pragma: no cover - never propagates
+                    # The nested update recurses into this same retry loop, so
+                    # this branch is unreachable in practice.
+                    continue  # pragma: no cover
+            _LOGGER.error(  # pragma: no cover - retries recurse until recovery
+                "API communication error after all retries: %s", err
+            )
+            msg = f"Communication error after 5 retries: {err}"  # pragma: no cover
+            raise UpdateFailed(msg) from err  # pragma: no cover

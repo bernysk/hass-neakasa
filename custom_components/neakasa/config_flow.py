@@ -49,9 +49,9 @@ class NeakasaConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]  #
     VERSION = 2
 
     @staticmethod
-    def async_get_options_flow(config_entry: ConfigEntry) -> NeakasaOptionsFlow:
+    def async_get_options_flow(_config_entry: ConfigEntry) -> NeakasaOptionsFlow:
         """Return the options flow."""
-        return NeakasaOptionsFlow(config_entry)
+        return NeakasaOptionsFlow()
 
     async def async_step_user(
         self,
