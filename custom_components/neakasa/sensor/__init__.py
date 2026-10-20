@@ -35,19 +35,34 @@ async def async_setup_entry(
     coordinator: NeakasaCoordinator = entry.runtime_data.coordinator
 
     _seen_iot_ids: set[str] = set()
+    _seen_cats: set[tuple[str, str]] = set()
 
     @callback
     def _discover() -> None:
         entities: list = []
         for iot_id, snap in coordinator.data.items():
-            if iot_id in _seen_iot_ids:
-                continue
-            _seen_iot_ids.add(iot_id)
             device_info = DeviceInfo(
                 name=snap.device_name,
                 manufacturer="Neakasa",
                 identifiers={(DOMAIN, iot_id)},
             )
+            # Cats can be added in the app after setup, so check every update.
+            for cat in snap.cat_list:
+                if (iot_id, cat["id"]) in _seen_cats:
+                    continue
+                _seen_cats.add((iot_id, cat["id"]))
+                entities.append(
+                    NeakasaCatWeightSensor(
+                        coordinator,
+                        device_info,
+                        iot_id,
+                        cat_name=cat["name"],
+                        cat_id=cat["id"],
+                    )
+                )
+            if iot_id in _seen_iot_ids:
+                continue
+            _seen_iot_ids.add(iot_id)
             entities.extend(
                 [
                     NeakasaSandPercentSensor(coordinator, device_info, iot_id),
@@ -58,16 +73,6 @@ async def async_setup_entry(
                     NeakasaSandLevelStateSensor(coordinator, device_info, iot_id),
                     NeakasaBinStateSensor(coordinator, device_info, iot_id),
                 ]
-            )
-            entities.extend(
-                NeakasaCatWeightSensor(
-                    coordinator,
-                    device_info,
-                    iot_id,
-                    cat_name=cat["name"],
-                    cat_id=cat["id"],
-                )
-                for cat in snap.cat_list
             )
         async_add_entities(entities)
 

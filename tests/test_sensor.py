@@ -475,3 +475,9 @@ async def test_sensor_async_setup_entry(hass) -> None:
     # Third pass with unchanged data adds nothing
     rediscover()
     assert len(collected) == before + 7
+
+    # A cat added later gets its own sensor on the next update
+    snap.cat_list = [*snap.cat_list, {"name": "Mittens", "id": "cat-2"}]
+    rediscover()
+    assert len(collected) == before + 8
+    assert collected[-1].unique_id == "iot-001-cat-cat-2"
