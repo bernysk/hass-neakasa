@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from email.utils import formatdate
 from typing import TYPE_CHECKING, Any
 
+from .const import REQUEST_TIMEOUT
+
 if TYPE_CHECKING:
     from aiohttp import ClientSession
 
@@ -179,7 +181,9 @@ class AliyunIoTClient:
         headers.update(x_ca)
 
         url = f"https://{self._cfg.domain}{pathname}"
-        async with self._session.post(url, headers=headers, data=json_body) as resp:
+        async with self._session.post(
+            url, headers=headers, data=json_body, timeout=REQUEST_TIMEOUT
+        ) as resp:
             body_bytes = await resp.read()
             if resp.status != 200:
                 _LOGGER.debug(
@@ -264,7 +268,7 @@ class AliyunIoTClient:
 
         url = f"https://{self._cfg.domain}{pathname}"
         async with self._session.post(
-            url, headers=base_headers, data=form_body
+            url, headers=base_headers, data=form_body, timeout=REQUEST_TIMEOUT
         ) as resp:
             return IoTResponse(
                 status_code=resp.status,

@@ -73,6 +73,7 @@ async def test_flow_abort_duplicate(
     """Test that a duplicate config entry is aborted."""
     # Create a first entry so the second one gets aborted
     with (
+        patch("custom_components.neakasa.async_setup_entry", return_value=True),
         patch(
             "custom_components.neakasa.config_flow.NeakasaAPI",
             autospec=True,

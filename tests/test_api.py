@@ -681,3 +681,72 @@ async def test_get_records() -> None:
     assert args[0] == "https://web.example.com/catbox/record"
     assert args[1]["device_name"] == "dev-1"
     assert args[1]["end_time"] - args[1]["start_time"] == 14 * 86400
+
+
+def test_parse_iot_response_not_an_object() -> None:
+    resp = IoTResponse(status_code=200, body=b"[1, 2]")
+    with pytest.raises(APIConnectionError, match="Unexpected response"):
+        NeakasaAPI._parse_iot_response(resp, "/path")
+
+
+@pytest.mark.parametrize("error", [ClientError("boom"), TimeoutError()])
+async def test_gateway_wraps_network_errors(mock_iot_client, error) -> None:
+    api = _make_api()
+    api.connected = True
+    api.apiGatewayEndpoint = "api.example.com"
+    api._iot_token = "tok"
+    mock_iot_client.return_value.do_request = AsyncMock(side_effect=error)
+    with pytest.raises(APIConnectionError, match="Failed to reach IoT gateway"):
+        await api.get_device_properties("iot-001")
+
+
+async def test_load_base_url_timeout() -> None:
+    api = _make_api()
+    api._session.get = MagicMock(side_effect=TimeoutError())
+    with pytest.raises(APIConnectionError):
+        await api._load_base_url_by_account("user@example.com")
+
+
+async def test_load_base_url_unexpected_payload() -> None:
+    api = _make_api()
+    api._session.get = MagicMock(
+        return_value=_FakeJSONResponse(json_data={"code": 0, "data": {}})
+    )
+    with pytest.raises(APIConnectionError, match="unexpected response"):
+        await api._load_base_url_by_account("user@example.com")
+
+
+async def test_load_auth_tokens_unexpected_payload() -> None:
+    api = _make_api()
+    api.baseurl = "https://web.example.com"
+    api._session.post = MagicMock(
+        return_value=_FakeJSONResponse(json_data={"code": 0, "data": {}})
+    )
+    with pytest.raises(APIConnectionError, match="unexpected response"):
+        await api._load_auth_tokens("user@example.com", "pw")
+
+
+async def test_signed_get_http_error() -> None:
+    api = _make_api()
+    _set_encryption(api)
+    api._session.get = MagicMock(return_value=_FakeJSONResponse(status=502))
+    with pytest.raises(APIConnectionError, match="HTTP 502"):
+        await api._signed_get("https://web.example.com/thing", {})
+
+
+async def test_signed_get_invalid_json() -> None:
+    api = _make_api()
+    _set_encryption(api)
+    api._session.get = MagicMock(
+        return_value=_FakeJSONResponse(json_error=ValueError("bad json"))
+    )
+    with pytest.raises(APIConnectionError, match="invalid JSON"):
+        await api._signed_get("https://web.example.com/thing", {})
+
+
+async def test_signed_get_not_an_object() -> None:
+    api = _make_api()
+    _set_encryption(api)
+    api._session.get = MagicMock(return_value=_FakeJSONResponse(json_data=[1]))
+    with pytest.raises(APIConnectionError, match="Error getting data: None"):
+        await api._signed_get("https://web.example.com/thing", {})

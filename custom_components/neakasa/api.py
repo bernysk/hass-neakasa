@@ -13,11 +13,16 @@ from typing import TYPE_CHECKING, Any
 from aiohttp import ClientError
 
 from .api_encryption import APIEncryption
-from .const import _LOGGER
+from .const import _LOGGER, REQUEST_TIMEOUT
 from .iot_gateway import AliyunIoTClient, IoTConfig, IoTResponse
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable
+
     from aiohttp import ClientSession
+
+# aiohttp signals a request timeout with TimeoutError, which is not a ClientError.
+_NETWORK_ERRORS = (ClientError, TimeoutError)
 
 
 class NeakasaAPI:
@@ -76,7 +81,20 @@ class NeakasaAPI:
             raise APIConnectionError(
                 f"Invalid JSON from {pathname}: {resp.body[:200]!r}"
             ) from exc
+        if not isinstance(result, dict):
+            raise APIConnectionError(f"Unexpected response from {pathname}")
         return result
+
+    async def _gateway(
+        self, request: Awaitable[IoTResponse], pathname: str
+    ) -> dict[str, Any]:
+        """Await an IoT gateway request and parse it, wrapping network errors."""
+        try:
+            resp = await request
+        except _NETWORK_ERRORS as err:
+            msg = f"Failed to reach IoT gateway on {pathname}: {err!r}"
+            raise APIConnectionError(msg) from err
+        return self._parse_iot_response(resp, pathname)
 
     async def _load_base_url_by_account(self, username: str) -> None:
         try:
@@ -94,6 +112,7 @@ class NeakasaAPI:
             async with self._session.get(
                 url="https://global.genhigh.com/global/baseurl/account",
                 params={"account": hashlib.md5(username.encode()).hexdigest()},
+                timeout=REQUEST_TIMEOUT,
                 headers={
                     "Request-Id": signature,
                     "Appid": self._app_key,
@@ -125,11 +144,14 @@ class NeakasaAPI:
                     )
                     raise APIConnectionError("Error connecting to api.") from e
 
-                if response_json["code"] != 0:
+                if response_json.get("code") != 0:
                     raise APIAuthError("Error connecting to api. Invalid username.")
                 self.baseurl = response_json["data"]["web"]
-        except ClientError:
-            raise APIConnectionError("Error connecting to api.")
+        except _NETWORK_ERRORS as err:
+            raise APIConnectionError("Error connecting to api.") from err
+        except (KeyError, TypeError, AttributeError) as err:
+            msg = "Failed to read base URL: unexpected response"
+            raise APIConnectionError(msg) from err
 
     async def _load_auth_tokens(self, username: str, password: str) -> None:
         try:
@@ -144,6 +166,7 @@ class NeakasaAPI:
 
             async with self._session.post(
                 url=self.baseurl + "/login/user",
+                timeout=REQUEST_TIMEOUT,
                 json={
                     "product_id": "a123nCqsrQm3vEbt",
                     "system": 1,
@@ -187,7 +210,7 @@ class NeakasaAPI:
                     )
                     raise APIConnectionError("Error connecting to api.") from e
 
-                if response_json["code"] != 0:
+                if response_json.get("code") != 0:
                     raise APIAuthError(
                         "Error connecting to api. Invalid username or password."
                     )
@@ -197,8 +220,11 @@ class NeakasaAPI:
                 await self._encryption.decodeLoginToken(
                     response_json["data"]["login_token"]
                 )
-        except ClientError:
-            raise APIConnectionError("Error connecting to api.")
+        except _NETWORK_ERRORS as err:
+            raise APIConnectionError("Error connecting to api.") from err
+        except (KeyError, TypeError, AttributeError) as err:
+            msg = "Failed to log in: unexpected response"
+            raise APIConnectionError(msg) from err
 
     async def _load_region_data(self) -> None:
         """Load regional API Gateway endpoints (IoT → do_request path)."""
@@ -220,8 +246,10 @@ class NeakasaAPI:
                 "type": "THIRD_AUTHCODE",
             },
         }
-        resp = await client.do_request("/living/account/region/get", body)
-        data = self._parse_iot_response(resp, "/living/account/region/get")
+        data = await self._gateway(
+            client.do_request("/living/account/region/get", body),
+            "/living/account/region/get",
+        )
         if data["code"] != 200:
             raise APIConnectionError("Error loading region data." + data["message"])
         self.oaApiGatewayEndpoint = data["data"]["oaApiGatewayEndpoint"]
@@ -242,8 +270,10 @@ class NeakasaAPI:
                 "device": {},
             }
         }
-        resp = await client.do_request_raw("/api/prd/connect.json", None, params)
-        data = self._parse_iot_response(resp, "/api/prd/connect.json")
+        data = await self._gateway(
+            client.do_request_raw("/api/prd/connect.json", None, params),
+            "/api/prd/connect.json",
+        )
         if data["success"] != "true":
             raise APIConnectionError("Error getting vid.")
         if data["data"]["successful"] != "true":
@@ -266,10 +296,10 @@ class NeakasaAPI:
                 "riskControlInfo": {},
             }
         }
-        resp = await client.do_request_raw(
-            "/api/prd/loginbyoauth.json", {"Vid": vid}, params
+        data = await self._gateway(
+            client.do_request_raw("/api/prd/loginbyoauth.json", {"Vid": vid}, params),
+            "/api/prd/loginbyoauth.json",
         )
-        data = self._parse_iot_response(resp, "/api/prd/loginbyoauth.json")
         if data["success"] != "true":
             raise APIAuthError("Error getting sid: " + data["errorMsg"])
         if data["data"]["successful"] != "true":
@@ -299,8 +329,10 @@ class NeakasaAPI:
                 }
             },
         }
-        resp = await client.do_request("/account/createSessionByAuthCode", body)
-        data = self._parse_iot_response(resp, "/account/createSessionByAuthCode")
+        data = await self._gateway(
+            client.do_request("/account/createSessionByAuthCode", body),
+            "/account/createSessionByAuthCode",
+        )
         if data["code"] != 200:
             self.connected = False
             raise APIAuthError("Error getting iot token: " + data["message"])
@@ -332,9 +364,8 @@ class NeakasaAPI:
             },
             "params": params,
         }
-        resp = await client.do_request(pathname, body)
-        data = self._parse_iot_response(resp, pathname)
-        if data["code"] != 200:
+        data = await self._gateway(client.do_request(pathname, body), pathname)
+        if data.get("code") != 200:
             error_msg = data.get("message", "unknown error")
             # Check for specific authentication errors
             if "identityId is blank" in error_msg:
@@ -345,7 +376,7 @@ class NeakasaAPI:
             _LOGGER.info(
                 "IoT cloud error — path=%s code=%s message=%r data_keys=%s",
                 pathname,
-                data["code"],
+                data.get("code"),
                 error_msg,
                 list(data.keys()),
             )
@@ -432,6 +463,7 @@ class NeakasaAPI:
             async with self._session.get(
                 url=url,
                 params=params,
+                timeout=REQUEST_TIMEOUT,
                 headers={
                     "Request-Id": signature,
                     "Token": str(await self._encryption.getToken()),
@@ -439,12 +471,19 @@ class NeakasaAPI:
                     "Accept-Language": "en",
                 },
             ) as response:
-                data = await response.json()
-                if data["code"] != 0:
-                    raise APIConnectionError("Error getting data: " + data["message"])
-                return data["data"]
-        except ClientError:
-            raise APIConnectionError("Error connecting to api.")
+                if response.status != 200:
+                    msg = f"Failed to get {url}: HTTP {response.status}"
+                    raise APIConnectionError(msg)
+                data = await response.json(content_type=None)
+        except _NETWORK_ERRORS as err:
+            raise APIConnectionError("Error connecting to api.") from err
+        except ValueError as err:
+            msg = f"Failed to get {url}: invalid JSON"
+            raise APIConnectionError(msg) from err
+        if not isinstance(data, dict) or data.get("code") != 0:
+            message = data.get("message") if isinstance(data, dict) else None
+            raise APIConnectionError(f"Error getting data: {message}")
+        return data.get("data")
 
     def _days_ago(self, now_ts: int, days: int) -> int:
         return int(
