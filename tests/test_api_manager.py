@@ -18,9 +18,9 @@ PASSWORD = "hunter2"
 
 @pytest.fixture(autouse=True)
 def _clean_shared_state() -> None:
-    clear_shared_api(USER, PASSWORD)
+    clear_shared_api(USER)
     yield
-    clear_shared_api(USER, PASSWORD)
+    clear_shared_api(USER)
 
 
 def _patched_manager() -> tuple[MagicMock, MagicMock, MagicMock]:
@@ -125,3 +125,24 @@ async def test_force_reconnect_api() -> None:
         second = await force_reconnect_api(MagicMock(), USER, PASSWORD)
         assert first is second
         assert client_cls.return_value.connect.await_count == 2
+
+
+async def test_shared_api_is_keyed_by_account_only() -> None:
+    session, api_cls, client_cls = _patched_manager()
+    with (
+        patch(
+            "custom_components.neakasa.api_manager.async_get_clientsession",
+            return_value=session,
+        ),
+        patch("custom_components.neakasa.api_manager.NeakasaAPI", api_cls),
+        patch(
+            "custom_components.neakasa.api_manager.NeakasaApiClient",
+            client_cls,
+        ),
+    ):
+        await get_shared_api(MagicMock(), USER, PASSWORD)
+
+    from custom_components.neakasa import api_manager
+
+    assert list(api_manager._shared_clients) == [USER]
+    assert all(PASSWORD not in key for key in api_manager._shared_locks)

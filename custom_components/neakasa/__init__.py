@@ -56,6 +56,6 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
 
     if unload_ok:
         coordinator = entry.runtime_data.coordinator
-        clear_shared_api(coordinator.username, coordinator.password)
+        clear_shared_api(coordinator.username)
 
     return unload_ok

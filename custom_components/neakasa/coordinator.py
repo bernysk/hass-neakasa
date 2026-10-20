@@ -477,7 +477,7 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
 
         Used for identityId-blank errors where a partial reconnect is insufficient.
         """
-        clear_shared_api(self.username, self.password)
+        clear_shared_api(self.username)
         return await self._reconnect_and_retry()
 
     # ------------------------------------------------------------------

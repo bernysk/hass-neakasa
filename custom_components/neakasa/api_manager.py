@@ -18,28 +18,33 @@ _shared_clients: dict[str, NeakasaApiClient] = {}
 _shared_locks: dict[str, asyncio.Lock] = {}
 
 
+def _account_key(username: str) -> str:
+    """Key cached clients by account, never by the password."""
+    return username.strip().lower()
+
+
 async def get_shared_api(
     hass: HomeAssistant, username: str, password: str
 ) -> NeakasaApiClient:
     """Get or create a shared API client for the given credentials."""
-    credentials_key = f"{username}:{password}"
-    if credentials_key not in _shared_locks:
-        _shared_locks[credentials_key] = asyncio.Lock()
-    async with _shared_locks[credentials_key]:
-        if credentials_key in _shared_clients:
-            client = _shared_clients[credentials_key]
+    account_key = _account_key(username)
+    if account_key not in _shared_locks:
+        _shared_locks[account_key] = asyncio.Lock()
+    async with _shared_locks[account_key]:
+        if account_key in _shared_clients:
+            client = _shared_clients[account_key]
             if client.connected:
                 _LOGGER.debug("Reusing shared API client for %s", username)
                 return client
             _LOGGER.debug("Clearing invalid API client for %s", username)
-            del _shared_clients[credentials_key]
+            del _shared_clients[account_key]
 
         session = async_get_clientsession(hass)
         client = NeakasaApiClient(NeakasaAPI(session))
         try:
             _LOGGER.debug("Authenticating shared API client for %s", username)
             await client.connect(username, password)
-            _shared_clients[credentials_key] = client
+            _shared_clients[account_key] = client
             _LOGGER.debug("Authenticated shared API client for %s", username)
         except Exception:
             _LOGGER.error(
@@ -50,17 +55,16 @@ async def get_shared_api(
             return client
 
 
-def clear_shared_api(username: str, password: str) -> None:
-    """Clear the shared API client for the given credentials."""
-    credentials_key = f"{username}:{password}"
-    _shared_clients.pop(credentials_key, None)
-    _shared_locks.pop(credentials_key, None)
+def clear_shared_api(username: str) -> None:
+    """Clear the shared API client for the given account."""
+    account_key = _account_key(username)
+    _shared_clients.pop(account_key, None)
+    _shared_locks.pop(account_key, None)
 
 
 async def force_reconnect_api(
     hass: HomeAssistant, username: str, password: str
 ) -> NeakasaApiClient:
     """Force reconnection of the API client for the given credentials."""
-    credentials_key = f"{username}:{password}"
-    _shared_clients.pop(credentials_key, None)
+    _shared_clients.pop(_account_key(username), None)
     return await get_shared_api(hass, username, password)

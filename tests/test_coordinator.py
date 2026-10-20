@@ -664,7 +664,7 @@ async def test_reconnect_clear_and_retry(
     ):
         result = await coordinator._reconnect_clear_and_retry()
 
-    clear_api.assert_called_once_with("test@example.com", "hunter2")
+    clear_api.assert_called_once_with("test@example.com")
     retry.assert_awaited_once()
     assert "iot-001" in result
 
