@@ -109,23 +109,23 @@ class NeakasaConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]  #
             username = user_input[CONF_USERNAME].strip()
             password = user_input[CONF_PASSWORD]
 
+            account_uid = f"account:{username.lower()}"
+            if account_uid != entry.unique_id:
+                await self.async_set_unique_id(account_uid)
+                self._abort_if_unique_id_configured()
+
             _client, error = await _validate_credentials(self.hass, username, password)
             if error is not None:
                 errors["base"] = error
             else:
-                self.hass.config_entries.async_update_entry(
+                return self.async_update_reload_and_abort(
                     entry,
+                    unique_id=account_uid,
                     title=f"Neakasa ({username})",
                     data={
                         CONF_USERNAME: username,
                         CONF_PASSWORD: password,
                     },
-                )
-                await self.hass.config_entries.async_reload(entry.entry_id)
-                return self.async_update_reload_and_abort(
-                    entry,
-                    unique_id=f"account:{username.lower()}",
-                    reason="reconfigure_successful",
                 )
 
         return self.async_show_form(
@@ -164,23 +164,19 @@ class NeakasaConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]  #
             username = user_input[CONF_USERNAME].strip()
             password = user_input[CONF_PASSWORD]
 
+            await self.async_set_unique_id(f"account:{username.lower()}")
+            self._abort_if_unique_id_mismatch(reason="wrong_account")
+
             _client, error = await _validate_credentials(self.hass, username, password)
             if error is not None:
                 errors["base"] = error
             else:
-                self.hass.config_entries.async_update_entry(
+                return self.async_update_reload_and_abort(
                     entry,
-                    title=f"Neakasa ({username})",
                     data={
                         CONF_USERNAME: username,
                         CONF_PASSWORD: password,
                     },
-                )
-                await self.hass.config_entries.async_reload(entry.entry_id)
-                return self.async_update_reload_and_abort(
-                    entry,
-                    unique_id=f"account:{username.lower()}",
-                    reason="reauth_successful",
                 )
 
         return self.async_show_form(

@@ -33,7 +33,9 @@
             "connection": "Fehler bei dem Verbindungsaufbau.",
             "no_devices_found": "Keine Neakasa CatLitter-Geräte mit diesem Konto gefunden.",
             "reauth_successful": "Reauthentication successful.",
-            "reconfigure_successful": "Reconfiguration successful."
+            "reconfigure_successful": "Reconfiguration successful.",
+            "already_configured": "Dieses Neakasa-Konto ist bereits eingerichtet.",
+            "wrong_account": "Die Zugangsdaten gehören zu einem anderen Neakasa-Konto als dieser Eintrag."
         },
         "error": {
             "authentication": "Invalid username or password.",

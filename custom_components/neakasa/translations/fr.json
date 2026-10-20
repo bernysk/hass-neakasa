@@ -33,7 +33,9 @@
             "unknown": "Erreur inconnue",
             "no_devices_found": "Aucune litière trouvée pour ce compte.",
             "reauth_successful": "Ré-authentication réussie.",
-            "reconfigure_successful": "Reconfiguration réussie."
+            "reconfigure_successful": "Reconfiguration réussie.",
+            "already_configured": "Ce compte Neakasa est déjà configuré.",
+            "wrong_account": "Les identifiants appartiennent à un autre compte Neakasa que cette entrée."
         },
         "error": {
             "authentication": "Utilisateur ou mot de passe invalide.",

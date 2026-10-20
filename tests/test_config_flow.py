@@ -487,3 +487,67 @@ async def test_validate_credentials_login_rejected(hass: HomeAssistant) -> None:
 
     assert result is None
     assert error == "authentication"
+
+
+async def test_reauth_flow_wrong_account(hass: HomeAssistant) -> None:
+    """Test that reauth refuses credentials for a different account."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="account:user@example.com",
+        data={CONF_USERNAME: "user@example.com", CONF_PASSWORD: "old-password"},
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.neakasa.config_flow._validate_credentials",
+        new=AsyncMock(return_value=(MagicMock(), None)),
+    ) as validate:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": "reauth", "entry_id": entry.entry_id},
+        )
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_USERNAME: "other@example.com", CONF_PASSWORD: "pw"},
+        )
+
+    assert result2["type"] is FlowResultType.ABORT
+    assert result2["reason"] == "wrong_account"
+    validate.assert_not_awaited()
+    assert entry.data[CONF_USERNAME] == "user@example.com"
+
+
+async def test_reconfigure_flow_rejects_configured_account(
+    hass: HomeAssistant,
+) -> None:
+    """Test that reconfigure cannot switch to an account another entry uses."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="account:user@example.com",
+        data={CONF_USERNAME: "user@example.com", CONF_PASSWORD: "pw"},
+    )
+    entry.add_to_hass(hass)
+    MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="account:other@example.com",
+        data={CONF_USERNAME: "other@example.com", CONF_PASSWORD: "pw"},
+    ).add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": "reconfigure", "entry_id": entry.entry_id},
+    )
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_USERNAME: "other@example.com", CONF_PASSWORD: "pw"},
+    )
+
+    assert result2["type"] is FlowResultType.ABORT
+    assert result2["reason"] == "already_configured"
