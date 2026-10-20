@@ -34,5 +34,10 @@ class NeakasaEntity(CoordinatorEntity[NeakasaCoordinator]):
         return f"{self._iot_id}-{self.translation_key}"
 
     @property
+    def available(self) -> bool:
+        """Return False when the last update had no data for this device."""
+        return super().available and self._snap is not None
+
+    @property
     def _snap(self) -> NeakasaDeviceSnapshot | None:
         return self.coordinator.device_snapshot(self._iot_id)
