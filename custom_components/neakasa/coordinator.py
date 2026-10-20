@@ -414,8 +414,13 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
         except NeakasaApiClientError as reconnect_err:
             msg = "Reconnection failed"
             raise UpdateFailed(msg) from reconnect_err
-        else:
-            return await self.async_update_data()
+        # Retry once only; going back through async_update_data could reconnect
+        # in a tight loop while the cloud keeps rejecting the fresh session.
+        try:
+            return await self._fetch_with_retries()
+        except NeakasaApiClientError as retry_err:
+            msg = f"Failed to fetch device data after reconnect: {retry_err}"
+            raise UpdateFailed(msg) from retry_err
 
     async def _reconnect_clear_and_retry(self) -> NeakasaPayload:
         """

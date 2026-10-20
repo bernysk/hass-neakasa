@@ -559,7 +559,7 @@ async def test_reconnect_and_retry_success(
 ) -> None:
     """Test that _reconnect_and_retry reconnects and re-runs the update."""
     coordinator = _make_coordinator(hass, mock_config_entry)
-    coordinator.async_update_data = AsyncMock(return_value={"iot-001": MagicMock()})
+    coordinator._fetch_with_retries = AsyncMock(return_value={"iot-001": MagicMock()})
 
     with patch(
         "custom_components.neakasa.coordinator.force_reconnect_api",
@@ -587,6 +587,29 @@ async def test_reconnect_and_retry_failure(
         pytest.raises(UpdateFailed),
     ):
         await coordinator._reconnect_and_retry()
+
+
+async def test_reconnect_and_retry_does_not_reconnect_again(
+    hass: HomeAssistant,
+    mock_config_entry: MagicMock,
+    mock_get_shared_api: MagicMock,
+) -> None:
+    """Test that a session still expired after reconnecting fails the update."""
+    coordinator = _make_coordinator(hass, mock_config_entry)
+    coordinator._fetch_with_retries = AsyncMock(
+        side_effect=NeakasaApiClientSessionExpiredError("expired")
+    )
+
+    with (
+        patch(
+            "custom_components.neakasa.coordinator.force_reconnect_api",
+            new=AsyncMock(),
+        ) as reconnect,
+        pytest.raises(UpdateFailed, match="after reconnect"),
+    ):
+        await coordinator._reconnect_and_retry()
+
+    reconnect.assert_awaited_once()
 
 
 async def test_reconnect_clear_and_retry(
