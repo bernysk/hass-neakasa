@@ -1,15 +1,15 @@
 # Neakasa Integration for Home Assistant 🏠
 
-[![GitHub Release](https://img.shields.io/github/v/release/tabascoz/hass-neakasa?sort=semver&style=for-the-badge&color=green)](https://github.com/tabascoz/hass-neakasa/releases/)
-[![GitHub Release Date](https://img.shields.io/github/release-date/tabascoz/hass-neakasa?style=for-the-badge&color=green)](https://github.com/tabascoz/hass-neakasa/releases/)
-![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/tabascoz/hass-neakasa/latest/total?style=for-the-badge&label=Downloads%20latest%20Release)
+[![GitHub Release](https://img.shields.io/github/v/release/bernysk/hass-neakasa?sort=semver&style=for-the-badge&color=green)](https://github.com/bernysk/hass-neakasa/releases/)
+[![GitHub Release Date](https://img.shields.io/github/release-date/bernysk/hass-neakasa?style=for-the-badge&color=green)](https://github.com/bernysk/hass-neakasa/releases/)
+![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/bernysk/hass-neakasa/latest/total?style=for-the-badge&label=Downloads%20latest%20Release)
 ![HA Analytics](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fanalytics.home-assistant.io%2Fcustom_integrations.json&query=%24.neakasa.total&style=for-the-badge&label=Active%20Installations&color=red)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/m/tabascoz/hass-neakasa?style=for-the-badge)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/bernysk/hass-neakasa?style=for-the-badge)
 [![hacs](https://img.shields.io/badge/HACS-Integration-blue.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
 ## Important note ##
 
-This is a copy of original Neakasa integration from @timniklas . Unfortunatelly, the original repository has vanished and I'll do my best to maintain it from now on. Will need some time to understand the code and take it over, allow me some time for it as i do it on my free time only. 
+This is a copy of the original Neakasa integration by @timniklas, whose repository is no longer available. This fork is kept for personal use and for experimenting with AI-assisted development. It is not actively maintained for others, so use it at your own risk.
 
 ## Overview
 
@@ -57,14 +57,14 @@ The Neakasa Home Assistant Custom Integration allows you to integrate your Neaka
 
 ### HACS (recommended)
 
-This integration is available in HACS (Home Assistant Community Store).
+This integration can be installed via HACS (Home Assistant Community Store) as a custom repository.
 
 1. Install HACS if you don't have it already
 2. Open HACS in Home Assistant
 3. Go to any of the sections (integrations, frontend, automation).
 4. Click on the 3 dots in the top right corner.
 5. Select "Custom repositories"
-6. Add following URL to the repository `https://github.com/tabascoz/hass-neakasa`.
+6. Add following URL to the repository `https://github.com/bernysk/hass-neakasa`.
 7. Select Integration as category.
 8. Click the "ADD" button
 9. Search for "Neakasa"
@@ -73,12 +73,12 @@ This integration is available in HACS (Home Assistant Community Store).
 ### Manual installation
 
 #### from downloaded zip archive
-To install this integration manually you have to download [_neakasa.zip_](https://github.com/tabascoz/hass-neakasa/releases/latest/) and extract its contents to `config/custom_components/neakasa` directory:
+To install this integration manually you have to download [_neakasa.zip_](https://github.com/bernysk/hass-neakasa/releases/latest/) and extract its contents to `config/custom_components/neakasa` directory:
 
 ```bash
 mkdir -p custom_components/neakasa
 cd custom_components/neakasa
-wget https://github.com/tabascoz/hacs_blitzerde/releases/latest/download/neakasa.zip
+wget https://github.com/bernysk/hass-neakasa/releases/latest/download/neakasa.zip
 unzip neakasa.zip
 rm neakasa.zip
 ```
@@ -92,7 +92,7 @@ with this variant, you can easily update the integration from the github reposit
 
 ```bash
 cd <to your Home Assistant config directory>
-git clone https://github.com/tabascoz/hass-neakasa
+git clone https://github.com/bernysk/hass-neakasa
 mkdir custom_components
 cd custom_components
 ln -s ../hass-neakasa/custom_components/neakasa/ .
