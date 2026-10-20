@@ -28,6 +28,8 @@ if TYPE_CHECKING:
 
 _clean_cfg_warnings_logged: set[str] = set()
 
+_IDENTITY_ID_BLANK = "identityId is blank"
+
 
 @dataclass
 class NeakasaDeviceSnapshot:
@@ -235,6 +237,9 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
         # "CatFoodFeeder": {"dispense": "dispense_food"},
     }
 
+    # Kept short so a failed poll finishes well within the default 60s interval.
+    _RETRY_DELAYS: ClassVar[tuple[int, ...]] = (2, 4, 8)
+
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         """Initialize the coordinator from a config entry."""
         self.config_entry = config_entry
@@ -425,26 +430,49 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
     # Main update loop
     # ------------------------------------------------------------------
 
+    async def _fetch_all(self) -> NeakasaPayload:
+        """Fetch one snapshot per known device, skipping devices that fail."""
+        devices = await self._discover_devices()
+        self._device_ids = [d["iotId"] for d in devices]
+
+        snapshots = await asyncio.gather(
+            *(self._fetch_single_device(iot_id) for iot_id in self._device_ids),
+            return_exceptions=True,
+        )
+
+        payload: NeakasaPayload = {}
+        for iot_id, result in zip(self._device_ids, snapshots, strict=False):
+            if isinstance(result, BaseException):
+                _LOGGER.error("Failed to fetch device %s: %s", iot_id, result)
+                continue
+            payload[iot_id] = result
+
+        _LOGGER.debug("Coordinator update complete: %d devices", len(payload))
+        return payload
+
+    async def _fetch_with_retries(self) -> NeakasaPayload:
+        """Fetch all devices, retrying transient communication errors with backoff."""
+        delays = iter(self._RETRY_DELAYS)
+        while True:
+            try:
+                return await self._fetch_all()
+            except NeakasaApiClientCommunicationError as err:
+                if _IDENTITY_ID_BLANK in str(err):
+                    raise
+                delay = next(delays, None)
+                if delay is None:
+                    msg = (
+                        f"Failed to fetch device data after "
+                        f"{len(self._RETRY_DELAYS)} retries: {err}"
+                    )
+                    raise UpdateFailed(msg) from err
+                _LOGGER.debug("Communication error, retrying in %ds: %s", delay, err)
+                await asyncio.sleep(delay)
+
     async def async_update_data(self) -> NeakasaPayload:
         """Fetch fresh data from all CatLitter devices on the account."""
         try:
-            devices = await self._discover_devices()
-            self._device_ids = [d["iotId"] for d in devices]
-
-            snapshots = await asyncio.gather(
-                *(self._fetch_single_device(iot_id) for iot_id in self._device_ids),
-                return_exceptions=True,
-            )
-
-            payload: NeakasaPayload = {}
-            for iot_id, result in zip(self._device_ids, snapshots, strict=False):
-                if isinstance(result, BaseException):
-                    _LOGGER.error("Failed to fetch device %s: %s", iot_id, result)
-                    continue
-                payload[iot_id] = result
-
-            _LOGGER.debug("Coordinator update complete: %d devices", len(payload))
-            return payload  # noqa: TRY300
+            return await self._fetch_with_retries()
 
         except NeakasaApiClientSessionExpiredError as err:
             _LOGGER.warning("Session expired, reconnecting silently: %s", err)
@@ -473,25 +501,6 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
                 )
                 raise
 
-        except NeakasaApiClientCommunicationError as err:
-            if "identityId is blank" in str(err):
-                _LOGGER.debug("IdentityId error, attempting automatic reconnection")
-                return await self._reconnect_clear_and_retry()
-
-            _LOGGER.warning("API communication error (retrying): %s", err)
-            for delay in (2, 4, 8, 16, 32):
-                _LOGGER.debug("Retrying after %ds ...", delay)
-                await asyncio.sleep(delay)
-                try:
-                    return await self.async_update_data()
-                except (
-                    NeakasaApiClientCommunicationError
-                ):  # pragma: no cover - never propagates
-                    # The nested update recurses into this same retry loop, so
-                    # this branch is unreachable in practice.
-                    continue  # pragma: no cover
-            _LOGGER.error(  # pragma: no cover - retries recurse until recovery
-                "API communication error after all retries: %s", err
-            )
-            msg = f"Communication error after 5 retries: {err}"  # pragma: no cover
-            raise UpdateFailed(msg) from err  # pragma: no cover
+        except NeakasaApiClientCommunicationError:
+            _LOGGER.debug("IdentityId error, attempting automatic reconnection")
+            return await self._reconnect_clear_and_retry()

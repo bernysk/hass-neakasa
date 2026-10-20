@@ -702,6 +702,29 @@ async def test_update_data_comm_retry_succeeds(
     assert discover.await_count == 2
 
 
+async def test_update_data_comm_retries_exhausted(
+    hass: HomeAssistant,
+    mock_config_entry: MagicMock,
+    mock_get_shared_api: MagicMock,
+) -> None:
+    """Test that persistent communication errors end in UpdateFailed."""
+    coordinator = _make_coordinator(hass, mock_config_entry)
+
+    with (
+        patch("asyncio.sleep", new=AsyncMock()) as sleep_mock,
+        patch.object(
+            coordinator,
+            "_discover_devices",
+            new=AsyncMock(side_effect=NeakasaApiClientCommunicationError("boom")),
+        ) as discover,
+        pytest.raises(UpdateFailed, match="after 3 retries"),
+    ):
+        await coordinator.async_update_data()
+
+    assert sleep_mock.await_count == 3
+    assert discover.await_count == 4
+
+
 async def test_update_data_identity_id_blank(
     hass: HomeAssistant,
     mock_config_entry: MagicMock,
