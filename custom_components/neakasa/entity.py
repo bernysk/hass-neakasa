@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import DOMAIN
 from .coordinator import NeakasaCoordinator, NeakasaDeviceSnapshot
 
-if TYPE_CHECKING:
-    from homeassistant.helpers.device_registry import DeviceInfo
+
+def neakasa_device_info(snap: NeakasaDeviceSnapshot) -> DeviceInfo:
+    """Build the device registry entry for the device behind *snap*."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, snap.iot_id)},
+        name=snap.device_name,
+        manufacturer="Neakasa",
+        model=snap.product_name or None,
+        model_id=snap.product_key or None,
+    )
 
 
 class NeakasaEntity(CoordinatorEntity[NeakasaCoordinator]):

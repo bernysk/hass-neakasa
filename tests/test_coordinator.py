@@ -403,7 +403,12 @@ async def test_discover_devices_filters_known_products(
     client = AsyncMock()
     client.get_devices = AsyncMock(
         return_value=[
-            {"iotId": "iot-1", "categoryKey": "CatLitter", "productKey": "pk1"},
+            {
+                "iotId": "iot-1",
+                "categoryKey": "CatLitter",
+                "productKey": "pk1",
+                "productName": "M1",
+            },
             {"iotId": "iot-2", "categoryKey": "WashingMachine"},
             {"iotId": "iot-3"},
         ]
@@ -416,6 +421,7 @@ async def test_discover_devices_filters_known_products(
     assert coordinator._device_meta["iot-1"] == {
         "category_key": "CatLitter",
         "product_key": "pk1",
+        "product_name": "M1",
     }
 
 

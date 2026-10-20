@@ -14,6 +14,7 @@ FAKE_SNAPSHOT = NeakasaDeviceSnapshot(
     device_name="T1 Plus",
     category_key="CatLitter",
     product_key="a1nNMMJkLqG",
+    product_name="T1 Plus",
     bin_full=False,
     clean_cfg={},
     sand_level_state=0,

@@ -36,6 +36,7 @@ def _coordinator_setup_side_effect(
         device_name="T1 Plus",
         category_key="CatLitter",
         product_key="a1nNMMJkLqG",
+        product_name="T1 Plus",
         bin_full=False,
         clean_cfg={
             "active": True,

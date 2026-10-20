@@ -50,6 +50,7 @@ class NeakasaDeviceSnapshot:
     device_name: str
     category_key: str
     product_key: str
+    product_name: str
     bin_full: bool
     clean_cfg: dict[str, Any]
     sand_level_state: int
@@ -128,6 +129,7 @@ def _build_device_snapshot(
     *,
     category_key: str = "CatLitter",
     product_key: str = "",
+    product_name: str = "",
 ) -> NeakasaDeviceSnapshot:
     """Build a :class:`NeakasaDeviceSnapshot` without crashing on missing keys."""
     if not isinstance(devicedata, dict):
@@ -187,6 +189,7 @@ def _build_device_snapshot(
         device_name=device_name,
         category_key=category_key,
         product_key=product_key,
+        product_name=product_name,
         bin_full=_property_value(devicedata, "binFullWaitReset", 0) == 1,
         clean_cfg=clean_cfg,
         young_cat_mode=_property_value(devicedata, "youngCatMode", 0) == 1,
@@ -369,6 +372,7 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
                 self._device_meta[iot_id] = {
                     "category_key": cat_key,
                     "product_key": d.get("productKey", ""),
+                    "product_name": d.get("productName", ""),
                 }
                 matched.append(d)
         return matched
@@ -433,6 +437,7 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
             new_last_use,
             category_key=meta.get("category_key", "CatLitter"),
             product_key=meta.get("product_key", ""),
+            product_name=meta.get("product_name", ""),
         )
 
     # ------------------------------------------------------------------
