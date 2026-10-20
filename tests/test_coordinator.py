@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -471,7 +472,7 @@ async def test_get_records_cached(
 
     assert records == {"cat_list": []}
     assert cached == {"cat_list": []}
-    client.get_records.assert_awaited_once_with("T1")
+    client.get_records.assert_awaited_once_with("T1", 7)
 
 
 async def test_get_properties_cached(
@@ -802,3 +803,15 @@ async def test_update_data_identity_id_blank(
 
     retry.assert_awaited_once()
     assert "iot-001" in data
+
+
+async def test_coordinator_reads_options(
+    hass: HomeAssistant,
+    mock_config_entry: MagicMock,
+) -> None:
+    """Test that options set the lookback and clamp too-short scan intervals."""
+    mock_config_entry.options = {"scan_interval": 10, "stats_lookback_days": 14}
+    coordinator = NeakasaCoordinator(hass, mock_config_entry)
+
+    assert coordinator.update_interval == timedelta(seconds=30)
+    assert coordinator._lookback_days == 14

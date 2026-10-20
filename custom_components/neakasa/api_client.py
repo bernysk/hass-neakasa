@@ -98,12 +98,12 @@ class NeakasaApiClient:
         async with _translate_errors():
             await self._api.sand_leveling(iot_id)
 
-    async def get_records(self, device_name: str) -> Any:
+    async def get_records(self, device_name: str, days: int = 7) -> Any:
         """Fetch toilet records, translating errors."""
         async with _translate_errors():
-            return await self._api.get_records(device_name)
+            return await self._api.get_records(device_name, days)
 
-    async def get_statistics(self, device_name: str) -> Any:
+    async def get_statistics(self, device_name: str, days: int = 7) -> Any:
         """Fetch statistics, translating errors."""
         async with _translate_errors():
-            return await self._api.get_statistics(device_name)
+            return await self._api.get_statistics(device_name, days)

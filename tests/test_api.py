@@ -651,9 +651,10 @@ async def test_signed_get_client_error() -> None:
         await api._signed_get("https://web.example.com/thing", {})
 
 
-def test_seven_days_ago() -> None:
+def test_days_ago() -> None:
     api = _make_api()
-    assert api._seven_days_ago(1730000000) == 1730000000 - 7 * 86400
+    assert api._days_ago(1730000000, 7) == 1730000000 - 7 * 86400
+    assert api._days_ago(1730000000, 14) == 1730000000 - 14 * 86400
 
 
 async def test_get_statistics() -> None:
@@ -675,7 +676,8 @@ async def test_get_records() -> None:
     api.baseurl = "https://web.example.com"
     _set_encryption(api)
     with patch.object(api, "_signed_get", new=AsyncMock(return_value={})) as signed:
-        await api.get_records("dev-1")
+        await api.get_records("dev-1", 14)
     args = signed.await_args.args
     assert args[0] == "https://web.example.com/catbox/record"
     assert args[1]["device_name"] == "dev-1"
+    assert args[1]["end_time"] - args[1]["start_time"] == 14 * 86400

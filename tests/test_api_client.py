@@ -72,14 +72,14 @@ async def test_get_records() -> None:
     client, api = _make_client()
     api.get_records = AsyncMock(return_value={"r": []})
     assert await client.get_records("dev") == {"r": []}
-    api.get_records.assert_awaited_once_with("dev")
+    api.get_records.assert_awaited_once_with("dev", 7)
 
 
 async def test_get_statistics() -> None:
     client, api = _make_client()
     api.get_statistics = AsyncMock(return_value={"s": 1})
     assert await client.get_statistics("dev") == {"s": 1}
-    api.get_statistics.assert_awaited_once_with("dev")
+    api.get_statistics.assert_awaited_once_with("dev", 7)
 
 
 async def test_translate_success_passthrough() -> None:

@@ -128,5 +128,20 @@
                 "name": "Nieprzerwany cykl"
             }
         }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opcje Neakasa",
+                "data": {
+                    "scan_interval": "Interwał odpytywania",
+                    "stats_lookback_days": "Okres statystyk"
+                },
+                "data_description": {
+                    "scan_interval": "Jak często odpytywać chmurę Neakasa, w sekundach (minimum 30).",
+                    "stats_lookback_days": "Ile dni historii użycia wczytywać dla czujników wagi kotów."
+                }
+            }
+        }
     }
 }

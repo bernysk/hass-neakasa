@@ -128,5 +128,20 @@
                 "name": "Cycle non arrêtable"
             }
         }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Options Neakasa",
+                "data": {
+                    "scan_interval": "Intervalle d'interrogation",
+                    "stats_lookback_days": "Période des statistiques"
+                },
+                "data_description": {
+                    "scan_interval": "Fréquence d'interrogation du cloud Neakasa, en secondes (minimum 30).",
+                    "stats_lookback_days": "Nombre de jours d'historique chargés pour les capteurs de poids des chats."
+                }
+            }
+        }
     }
 }

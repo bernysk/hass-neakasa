@@ -128,5 +128,20 @@
                 "name": "Unstoppable cycle"
             }
         }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Neakasa options",
+                "data": {
+                    "scan_interval": "Polling interval",
+                    "stats_lookback_days": "Statistics lookback"
+                },
+                "data_description": {
+                    "scan_interval": "How often to poll the Neakasa cloud, in seconds (minimum 30).",
+                    "stats_lookback_days": "How many days of usage records to load for the cat weight sensors."
+                }
+            }
+        }
     }
 }

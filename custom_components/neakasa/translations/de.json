@@ -128,5 +128,20 @@
                 "name": "Auto clean"
             }
         }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Neakasa-Optionen",
+                "data": {
+                    "scan_interval": "Abfrageintervall",
+                    "stats_lookback_days": "Statistik-Zeitraum"
+                },
+                "data_description": {
+                    "scan_interval": "Wie oft die Neakasa-Cloud abgefragt wird, in Sekunden (mindestens 30).",
+                    "stats_lookback_days": "Wie viele Tage an Nutzungsdaten für die Katzengewicht-Sensoren geladen werden."
+                }
+            }
+        }
     }
 }

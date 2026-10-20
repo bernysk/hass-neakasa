@@ -12,7 +12,15 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api_manager import clear_shared_api, force_reconnect_api, get_shared_api
-from .const import _LOGGER, DOMAIN
+from .const import (
+    _LOGGER,
+    CONF_SCAN_INTERVAL,
+    CONF_STATS_LOOKBACK_DAYS,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STATS_LOOKBACK_DAYS,
+    DOMAIN,
+    MIN_SCAN_INTERVAL,
+)
 from .exceptions import (
     NeakasaApiClientAuthenticationError,
     NeakasaApiClientCommunicationError,
@@ -254,7 +262,16 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
         self._device_meta: dict[str, dict[str, str]] = {}
         self._device_ids: list[str] = []
 
-        scan_interval = config_entry.options.get("scan_interval", 60)
+        self._lookback_days = int(
+            config_entry.options.get(
+                CONF_STATS_LOOKBACK_DAYS, DEFAULT_STATS_LOOKBACK_DAYS
+            )
+        )
+        # Older versions allowed polling down to 10s; clamp saved options too.
+        scan_interval = max(
+            MIN_SCAN_INTERVAL,
+            int(config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
+        )
         super().__init__(
             hass,
             _LOGGER,
@@ -362,7 +379,7 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
         async def fetch() -> Any:
             device_name = await self._get_device_name(iot_id)
             client = await self._get_client()
-            return await client.get_records(device_name)
+            return await client.get_records(device_name, self._lookback_days)
 
         return await records_cache.get_or_update(fetch)
 

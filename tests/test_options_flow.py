@@ -47,3 +47,26 @@ async def test_options_flow_uses_existing_options(hass: HomeAssistant) -> None:
     )
     assert result2["type"] is FlowResultType.CREATE_ENTRY
     assert result2["data"] == {"scan_interval": 150, "stats_lookback_days": 21}
+
+
+async def test_options_flow_stores_integers(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="account:user@example.com",
+        data={},
+        options={"scan_interval": 10},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    schema = result["data_schema"].schema
+    scan_key = next(key for key in schema if key == "scan_interval")
+    assert scan_key.default() == 30
+
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {"scan_interval": 45.0, "stats_lookback_days": 3.0},
+    )
+    assert result2["data"] == {"scan_interval": 45, "stats_lookback_days": 3}
+    assert isinstance(result2["data"]["scan_interval"], int)

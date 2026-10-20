@@ -12,6 +12,14 @@ from homeassistant.helpers.selector import (
     NumberSelectorMode,
 )
 
+from .const import (
+    CONF_SCAN_INTERVAL,
+    CONF_STATS_LOOKBACK_DAYS,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STATS_LOOKBACK_DAYS,
+    MIN_SCAN_INTERVAL,
+)
+
 
 class NeakasaOptionsFlow(OptionsFlow):
     """Handle options for Neakasa integration."""
@@ -22,19 +30,26 @@ class NeakasaOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            return self.async_create_entry(
+                data={key: int(value) for key, value in user_input.items()}
+            )
 
-        current_scan = self.config_entry.options.get("scan_interval", 60)
-        current_lookback = self.config_entry.options.get("stats_lookback_days", 7)
+        options = self.config_entry.options
+        current_scan = max(
+            MIN_SCAN_INTERVAL, options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        )
+        current_lookback = options.get(
+            CONF_STATS_LOOKBACK_DAYS, DEFAULT_STATS_LOOKBACK_DAYS
+        )
 
         schema = vol.Schema(
             {
                 vol.Required(
-                    "scan_interval",
+                    CONF_SCAN_INTERVAL,
                     default=current_scan,
                 ): NumberSelector(
                     NumberSelectorConfig(
-                        min=10,
+                        min=MIN_SCAN_INTERVAL,
                         max=300,
                         step=5,
                         unit_of_measurement="seconds",
@@ -42,7 +57,7 @@ class NeakasaOptionsFlow(OptionsFlow):
                     ),
                 ),
                 vol.Required(
-                    "stats_lookback_days",
+                    CONF_STATS_LOOKBACK_DAYS,
                     default=current_lookback,
                 ): NumberSelector(
                     NumberSelectorConfig(

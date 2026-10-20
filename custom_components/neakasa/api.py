@@ -446,13 +446,13 @@ class NeakasaAPI:
         except ClientError:
             raise APIConnectionError("Error connecting to api.")
 
-    def _seven_days_ago(self, now_ts: int) -> int:
+    def _days_ago(self, now_ts: int, days: int) -> int:
         return int(
-            (datetime.fromtimestamp(now_ts, tz=UTC) - timedelta(days=7)).timestamp()
+            (datetime.fromtimestamp(now_ts, tz=UTC) - timedelta(days=days)).timestamp()
         )
 
-    async def get_statistics(self, device_name: str) -> Any:
-        """Fetch usage statistics for the last 7 days."""
+    async def get_statistics(self, device_name: str, days: int = 7) -> Any:
+        """Fetch usage statistics for the last *days* days."""
         timestamp = int(time.time())
         return await self._signed_get(
             self.baseurl + "/catbox/toilet/statistics",
@@ -460,13 +460,13 @@ class NeakasaAPI:
                 "user_id": self._encryption.userid,
                 "device_name": device_name,
                 "bind_status": 2,
-                "start_time": self._seven_days_ago(timestamp),
+                "start_time": self._days_ago(timestamp, days),
                 "end_time": timestamp,
             },
         )
 
-    async def get_records(self, device_name: str) -> Any:
-        """Fetch usage records for the last 7 days."""
+    async def get_records(self, device_name: str, days: int = 7) -> Any:
+        """Fetch usage records for the last *days* days."""
         timestamp = int(time.time())
         return await self._signed_get(
             self.baseurl + "/catbox/record",
@@ -474,7 +474,7 @@ class NeakasaAPI:
                 "user_id": self._encryption.userid,
                 "device_name": device_name,
                 "bind_status": 2,
-                "start_time": self._seven_days_ago(timestamp),
+                "start_time": self._days_ago(timestamp, days),
                 "end_time": timestamp,
             },
         )
