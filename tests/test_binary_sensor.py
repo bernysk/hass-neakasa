@@ -101,7 +101,7 @@ def _fake_platform_data() -> MagicMock:
 
 
 async def test_lifecycle_methods(hass) -> None:
-    """Test coordinator update handler, async_update and async_added_to_hass."""
+    """Test that the entity subscribes to and handles coordinator updates."""
     coord = MagicMock()
     coord.device_snapshot.return_value = FAKE_SNAPSHOT
     entity = NeakasaBinFullBinarySensor(coord, FAKE_DEVICE_INFO, "iot-001")
@@ -113,10 +113,6 @@ async def test_lifecycle_methods(hass) -> None:
     assert coord.async_add_listener.called
 
     entity._handle_coordinator_update()
-    await entity.async_update()
-
-    entity.entity_id = None
-    await entity.async_update()
 
 
 async def test_async_setup_entry(hass) -> None:

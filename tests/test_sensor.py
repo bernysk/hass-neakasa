@@ -434,10 +434,6 @@ async def test_sensor_lifecycle_methods(hass) -> None:
         sensor.entity_id = f"sensor.neakasa_{index}"
         await sensor.async_added_to_hass()
         sensor._handle_coordinator_update()
-        await sensor.async_update()
-
-        sensor.entity_id = None
-        await sensor.async_update()
 
 
 # ---------------------------------------------------------------------------

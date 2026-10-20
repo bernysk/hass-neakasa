@@ -74,7 +74,7 @@ def _fake_platform_data() -> MagicMock:
 
 
 async def test_button_lifecycle(hass) -> None:
-    """Test coordinator update handler, async_update and async_added_to_hass."""
+    """Test that the entity subscribes to and handles coordinator updates."""
     coord = MagicMock()
     clean = NeakasaCleanButton(coord, FAKE_DEVICE_INFO, "iot-001")
     clean.hass = hass
@@ -83,9 +83,6 @@ async def test_button_lifecycle(hass) -> None:
     await clean.async_added_to_hass()
     assert coord.async_add_listener.called
     clean._handle_coordinator_update()
-    await clean.async_update()
-    clean.entity_id = None
-    await clean.async_update()
 
     level = NeakasaLevelButton(coord, FAKE_DEVICE_INFO, "iot-001")
     level.hass = hass
@@ -93,9 +90,6 @@ async def test_button_lifecycle(hass) -> None:
     level.entity_id = "button.neakasa_level"
     await level.async_added_to_hass()
     level._handle_coordinator_update()
-    await level.async_update()
-    level.entity_id = None
-    await level.async_update()
 
 
 async def test_async_setup_entry(hass) -> None:

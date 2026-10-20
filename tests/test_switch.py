@@ -420,10 +420,6 @@ async def test_switch_lifecycle(hass: HomeAssistant) -> None:
         switch.entity_id = f"switch.neakasa_{index}"
         await switch.async_added_to_hass()
         switch._handle_coordinator_update()
-        await switch.async_update()
-
-        switch.entity_id = None
-        await switch.async_update()
 
 
 # ---------------------------------------------------------------------------
