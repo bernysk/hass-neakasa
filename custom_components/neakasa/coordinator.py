@@ -364,6 +364,7 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
             cat_key: str = d.get("categoryKey", "")
             if cat_key in self.KNOWN_PRODUCT_TYPES:
                 iot_id: str = d.get("iotId", "")
+                self._device_names[iot_id] = d.get("deviceName") or iot_id
                 self._device_meta[iot_id] = {
                     "category_key": cat_key,
                     "product_key": d.get("productKey", ""),
@@ -385,26 +386,16 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
             )
         return self._records_caches[iot_id], self._properties_caches[iot_id]
 
-    async def _get_device_name(self, iot_id: str) -> str:
-        """Resolve a user-facing device name from its IOT ID."""
-        if iot_id in self._device_names:
-            return self._device_names[iot_id]
-        client = await self._get_client()
-        devices = await client.get_devices()
-        for d in devices:
-            if d.get("iotId") == iot_id:
-                name = d.get("deviceName") or iot_id
-                self._device_names[iot_id] = name
-                return name
-        self._device_names[iot_id] = iot_id
-        return iot_id
+    def _get_device_name(self, iot_id: str) -> str:
+        """Return the device name recorded during discovery, or the IOT ID."""
+        return self._device_names.get(iot_id, iot_id)
 
     async def _get_records(self, iot_id: str) -> Any:
         """Fetch cached usage records for *iot_id*."""
         records_cache, _ = self._cache_for(iot_id)
 
         async def fetch() -> Any:
-            device_name = await self._get_device_name(iot_id)
+            device_name = self._get_device_name(iot_id)
             client = await self._get_client()
             return await client.get_records(device_name, self._lookback_days)
 
@@ -431,7 +422,7 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
         self._last_use_dates[iot_id] = new_last_use
 
         records = await self._get_records(iot_id)
-        device_name = await self._get_device_name(iot_id)
+        device_name = self._get_device_name(iot_id)
         meta = self._device_meta.get(iot_id, {})
         return _build_device_snapshot(
             iot_id,

@@ -430,27 +430,28 @@ async def test_cache_for_creates_and_reuses(
     assert props_cache is coordinator._properties_caches["iot-001"]
 
 
-async def test_get_device_name_variants(
+async def test_get_device_name_from_discovery(
     hass: HomeAssistant,
     mock_config_entry: MagicMock,
     mock_get_shared_api: MagicMock,
 ) -> None:
-    """Test cached, discovered, and fallback device-name resolution."""
+    """Test that discovery records names so lookups need no extra API call."""
     coordinator = _make_coordinator(hass, mock_config_entry)
     client = AsyncMock()
     client.get_devices = AsyncMock(
-        return_value=[{"iotId": "iot-2", "deviceName": "T2"}]
+        return_value=[
+            {"iotId": "iot-1", "deviceName": "T1", "categoryKey": "CatLitter"},
+            {"iotId": "iot-2", "categoryKey": "CatLitter"},
+        ]
     )
     coordinator._get_client = AsyncMock(return_value=client)
 
-    coordinator._device_names["iot-1"] = "Known"
-    assert await coordinator._get_device_name("iot-1") == "Known"
+    await coordinator._discover_devices()
 
-    assert await coordinator._get_device_name("iot-2") == "T2"
-    assert coordinator._device_names["iot-2"] == "T2"
-
-    assert await coordinator._get_device_name("iot-missing") == "iot-missing"
-    assert coordinator._device_names["iot-missing"] == "iot-missing"
+    assert coordinator._get_device_name("iot-1") == "T1"
+    assert coordinator._get_device_name("iot-2") == "iot-2"
+    assert coordinator._get_device_name("iot-missing") == "iot-missing"
+    client.get_devices.assert_awaited_once()
 
 
 async def test_get_records_cached(
@@ -464,9 +465,7 @@ async def test_get_records_cached(
     client.get_records = AsyncMock(return_value={"cat_list": []})
     coordinator._get_client = AsyncMock(return_value=client)
 
-    with patch.object(
-        coordinator, "_get_device_name", new=AsyncMock(return_value="T1")
-    ):
+    with patch.object(coordinator, "_get_device_name", return_value="T1"):
         records = await coordinator._get_records("iot-001")
         cached = await coordinator._get_records("iot-001")
 
@@ -512,9 +511,7 @@ async def test_fetch_single_device(
         patch.object(
             coordinator, "_get_records", new=AsyncMock(return_value={"cat_list": []})
         ),
-        patch.object(
-            coordinator, "_get_device_name", new=AsyncMock(return_value="T1 Plus")
-        ),
+        patch.object(coordinator, "_get_device_name", return_value="T1 Plus"),
     ):
         snap = await coordinator._fetch_single_device("iot-001")
 
@@ -538,7 +535,7 @@ async def test_fetch_single_device_marks_records_stale(
             coordinator, "_get_properties", new=AsyncMock(return_value=devicedata)
         ),
         patch.object(coordinator, "_get_records", new=AsyncMock(return_value={})),
-        patch.object(coordinator, "_get_device_name", new=AsyncMock(return_value="T1")),
+        patch.object(coordinator, "_get_device_name", return_value="T1"),
     ):
         await coordinator._fetch_single_device("iot-001")
         _, props_cache = coordinator._cache_for("iot-001")
