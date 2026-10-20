@@ -11,7 +11,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import NeakasaAPI
 from .api_client import NeakasaApiClient
-from .const import _LOGGER, DOMAIN
+from .const import _LOGGER, CONFIG_MINOR_VERSION, CONFIG_VERSION, DOMAIN
 from .exceptions import (
     NeakasaApiClientAuthenticationError,
     NeakasaApiClientCommunicationError,
@@ -45,7 +45,8 @@ async def _validate_credentials(
 class NeakasaConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]  # HA __init_subclass__ convention
     """Handle a config flow for Neakasa."""
 
-    VERSION = 2
+    VERSION = CONFIG_VERSION
+    MINOR_VERSION = CONFIG_MINOR_VERSION
 
     @staticmethod
     def async_get_options_flow(_config_entry: ConfigEntry) -> NeakasaOptionsFlow:

@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 
 DOMAIN = "neakasa"
+CONFIG_VERSION = 2
+CONFIG_MINOR_VERSION = 2
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_STATS_LOOKBACK_DAYS = "stats_lookback_days"
 DEFAULT_SCAN_INTERVAL = 60
