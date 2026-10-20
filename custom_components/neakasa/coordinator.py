@@ -326,6 +326,7 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
             case _:
                 msg = f"Unknown service: {service}"
                 raise ValueError(msg)
+        await self.async_request_refresh()
 
     async def _run_command(
         self,

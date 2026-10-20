@@ -253,12 +253,14 @@ async def test_invoke_service(
     client.clean_now = AsyncMock()
     client.sand_leveling = AsyncMock()
     coordinator._get_client = AsyncMock(return_value=client)
+    coordinator.async_request_refresh = AsyncMock()
 
     await coordinator.invoke_service("iot-001", "clean")
     client.clean_now.assert_awaited_once_with("iot-001")
 
     await coordinator.invoke_service("iot-001", "level")
     client.sand_leveling.assert_awaited_once_with("iot-001")
+    assert coordinator.async_request_refresh.await_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -847,6 +849,7 @@ async def test_invoke_service_relogs_in_once_on_expired_session(
     )
     fresh = AsyncMock()
     coordinator._get_client = AsyncMock(return_value=stale)
+    coordinator.async_request_refresh = AsyncMock()
 
     with patch(
         "custom_components.neakasa.coordinator.force_reconnect_api",
