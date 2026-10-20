@@ -1,14 +1,18 @@
+"""Time-based cache for slow cloud lookups."""
+
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import asyncio
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Callable, Coroutine
 
 
 class ValueCacher:
+    """Cache one value, refreshing it when stale and falling back to it on errors."""
+
     def __init__(
         self, refresh_after: timedelta | None, discard_after: timedelta | None
     ) -> None:
@@ -17,9 +21,7 @@ class ValueCacher:
         self._manually_marked_stale = False
         self._value: Any | None = None
         self._last_update: datetime | None = None
-        import asyncio as _asyncio
-
-        self._lock = _asyncio.Lock()
+        self._lock = asyncio.Lock()
         self._inflight: asyncio.Task[Any] | None = None
 
     def set(self, value: Any) -> None:
@@ -59,7 +61,9 @@ class ValueCacher:
                 return None
         return self._value
 
-    async def get_or_update(self, update_func: Callable[[], Awaitable[Any]]) -> Any:
+    async def get_or_update(
+        self, update_func: Callable[[], Coroutine[Any, Any, Any]]
+    ) -> Any:
         # fast path
         current = self.value_if_not_stale()
         if current is not None:
@@ -80,8 +84,7 @@ class ValueCacher:
                         return fallback
                     raise
 
-            loop = __import__("asyncio").get_running_loop()
-            self._inflight = loop.create_task(update_func())
+            self._inflight = asyncio.get_running_loop().create_task(update_func())
             try:
                 result = await self._inflight
                 self.set(result)
