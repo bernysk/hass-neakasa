@@ -152,11 +152,10 @@ Entries created by old versions (one per litter box) are merged automatically in
 
 See [CHANGELOG.md](CHANGELOG.md).
 
-## Help and Contribution
+## Support and Contributions
 
-If you find a problem, feel free to report it and I will do my best to help you.
-If you have something to contribute, your help is greatly appreciated!
-If you want to add a new feature, add a pull request first so we can discuss the details.
+This fork is maintained for personal use only, so there is no support and no promise of fixes or new features.
+You are welcome to fork it and adapt it to your needs. Pull requests may be looked at occasionally, but may not be reviewed or merged.
 
 ## Disclaimer
 
