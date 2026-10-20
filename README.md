@@ -31,6 +31,8 @@ The Neakasa Home Assistant Custom Integration allows you to integrate your Neaka
 |Bin state|normal / full / missing|normal|yes|
 |Cat {name}|kg|3.8|yes|
 
+One "Cat {name}" sensor is created per cat on the account, including cats added later in the app. It shows the weight from the cat's most recent visit and is empty when there was no visit within the statistics lookback (see [Options](#options)).
+
 #### Binary sensors:
 |Binary Sensor|Example Value|Enabled by default|
 |-------------|-------------|------------------|
@@ -45,6 +47,7 @@ The Neakasa Home Assistant Custom Integration allows you to integrate your Neaka
 #### Switches:
 |Switch|Enabled by default|
 |------|------------------|
+|Auto clean|yes|
 |Kitten mode|no (rare edgecase)|
 |Child lock|yes|
 |Automatic cover|yes|
@@ -120,12 +123,34 @@ restart Home Assistant.
 From the Home Assistant front page go to `Configuration` and then select `Devices & Services` from the list.
 Use the `Add Integration` button in the bottom right to add a new integration called `Neakasa`.
 
+Enter your Neakasa account credentials. One entry covers every litter box on the account.
+
+### Options
+
+Open the integration and choose `Configure` to change:
+
+|Option|Default|Range|Description|
+|------|-------|-----|-----------|
+|Polling interval|60 s|30–300 s|How often the Neakasa cloud is polled.|
+|Statistics lookback|7 days|1–30 days|How many days of visits are loaded for the cat weight sensors.|
+
+### Changing credentials
+
+- If your password changes, Home Assistant asks you to re-authenticate the integration.
+- To switch the entry to another account, use `Reconfigure` on the integration.
+
+Entries created by old versions (one per litter box) are merged automatically into a single entry per account; existing entities and their history are kept.
+
 ## Troubleshooting Tips / Known Issues
 
 1. When you discover  that the mobile app is starting over and over, beginning again with the login steps, then you should use this HA integration with a different account than with the app. Create a second account and use the share function in the app - simply share the device with the second account
 2. powercycle the litterbox
 3. reset the litterbox and reintegrate it
 4. open an issue
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## Help and Contribution
 
