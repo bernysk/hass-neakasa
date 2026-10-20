@@ -27,49 +27,51 @@ uv run ruff format . && uv run ruff check . --fix && uv run mypy custom_componen
 
 ## Architecture
 
-The integration follows the HA `DataUpdateCoordinator` pattern:
+The integration follows the HA `DataUpdateCoordinator` pattern, with one
+config entry per Neakasa account covering all of its litter boxes:
 
 ```
-config_flow.py    → validates credentials and creates the ConfigEntry
-__init__.py       → instantiates the shared API, creates the coordinator, forwards to platforms
-coordinator.py    → polls every 60s; returns NeakasaAPIData dataclass
-api.py            → NeakasaAPI — authentication, Aliyun IoT gateway, device properties, records
-client.py         → Custom HTTP client with Aliyun API Gateway HMAC signing
-api_encryption.py → AES-CBC encryption helpers for login token decryption
-value_cacher.py   → Time-based cache with refresh/discard windows
-sensor.py         → All sensor entities (generic NeakasaSensor, NeakasaMapSensor, NeakasaTimestampSensor, NeakasaCatSensor)
-switch.py         → NeakasaSwitch — generic switch with optional dict subkey support
-button.py         → NeakasaButton — triggers clean/level services
-binary_sensor.py  → NeakasaBinarySensor — e.g. bin_full
+__init__.py         → async_setup_entry / async_unload_entry; forwards to platforms
+migration.py        → config entry migrations (V1 per-device → V2.2 per-account)
+config_flow.py      → user / reauth / reconfigure flows (credentials only)
+options_flow.py     → scan_interval (≥30s) and stats_lookback_days
+coordinator.py      → polls all CatLitter devices; data is dict[iot_id, NeakasaDeviceSnapshot]
+api_manager.py      → caches one authenticated NeakasaApiClient per account
+api_client.py       → NeakasaApiClient: wraps NeakasaAPI and translates its errors
+api.py              → NeakasaAPI: login, Aliyun IoT gateway calls, Neakasa web API
+iot_gateway.py      → AliyunIoTClient: Aliyun API Gateway HMAC request signing (aiohttp)
+api_encryption.py   → AES-CBC helpers for the web API login token
+value_cacher.py     → time-based cache with refresh/discard windows
+entity.py           → NeakasaEntity base class and neakasa_device_info()
+sensor/ switch/ binary_sensor/ button/
+                    → one entity class per file, all subclassing NeakasaEntity
+diagnostics.py      → redacted diagnostics download
 ```
 
-### API dependency
+There is no Aliyun SDK dependency; requests are signed by hand in
+`iot_gateway.py`.
 
-The integration depends on `alibabacloud_iot_api_gateway` and
-`alibabacloud_tea_util` (the Alibaba Cloud "Tea" framework). The custom
-`client.py` wraps Aliyun API Gateway HMAC signing. The long-term plan
-is to isolate or replace this with a dedicated SDK package.
+### Errors and recovery
 
-### Shared API pattern
-
-`__init__.py` maintains `_shared_apis: dict[str, NeakasaAPI]` and
-`_shared_locks: dict[str, asyncio.Lock]` keyed by `"username:password"`.
-Multiple config entries for the same account share one authenticated API
-instance. This is a transitional pattern — the goal is single-entry
-multi-device architecture.
-
-### Config flow
-
-Two-step: username/password → device picker (filtered to `CatLitter` devices).
-Each device gets its own config entry with `iotId` as unique_id.
-Account-level dedup uses `account:{email}`.
+`NeakasaAPI` raises `APIAuthError` / `APIConnectionError`; `NeakasaApiClient`
+translates them into the `exceptions/` hierarchy
+(`NeakasaApiClientAuthenticationError`, `…SessionExpiredError`,
+`…CommunicationError`). The coordinator retries communication errors a few
+times with backoff, re-logs in once on an expired session, and raises
+`ConfigEntryAuthFailed` (which starts reauth) when the credentials are
+rejected. User-triggered commands raise translated `HomeAssistantError`s.
 
 ### Coordinator data
 
-`NeakasaCoordinator.data` returns `NeakasaAPIData` — a single flat dataclass
-with ~20 fields covering device properties + cat/record lists. Properties
-are cached for 30min via `ValueCacher`; records are cached for 30min and
-invalidated when `lastUse` changes.
+`NeakasaCoordinator.data` maps each device's `iotId` to a
+`NeakasaDeviceSnapshot`. Device properties are fetched on every poll (with a
+30 min fallback on errors via `ValueCacher`); usage records are cached for
+30 min and invalidated when `catLeft.time` changes.
+
+### Tests
+
+Home Assistant's test plugin does not run on Windows (it needs `fcntl` and
+`resource`); run the suite on Linux, macOS, WSL or in CI.
 
 ## Wave migration plan
 
