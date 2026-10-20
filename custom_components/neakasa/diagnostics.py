@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from homeassistant.components.diagnostics import async_redact_data
+from homeassistant.components.diagnostics import REDACTED, async_redact_data
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 
 if TYPE_CHECKING:
@@ -29,14 +29,13 @@ async def async_get_config_entry_diagnostics(
     coordinator = entry.runtime_data.coordinator
     return {
         "entry": {
-            "title": entry.title,
+            "title": REDACTED,
             "version": entry.version,
             "domain": entry.domain,
             "data": redacted_data,
             "options": dict(entry.options),
         },
         "coordinator": {
-            "username": coordinator.username,
             "device_ids": coordinator.device_ids,
             "data_device_count": len(coordinator.data) if coordinator.data else 0,
         },
