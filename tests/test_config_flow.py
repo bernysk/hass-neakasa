@@ -141,7 +141,7 @@ async def test_validate_credentials_success(hass: HomeAssistant) -> None:
 
         result, error = await _validate_credentials(hass, "user@example.com", "hunter2")
 
-    assert result is client
+    assert result == [d for d in FAKE_DEVICES if d["categoryKey"] == "CatLitter"]
     assert error is None
 
 
@@ -552,3 +552,35 @@ async def test_reconfigure_flow_rejects_configured_account(
 
     assert result2["type"] is FlowResultType.ABORT
     assert result2["reason"] == "already_configured"
+
+
+async def test_flow_aborts_when_all_devices_are_managed(hass: HomeAssistant) -> None:
+    """Test that an account whose boxes another entry manages is refused."""
+    from homeassistant.helpers import device_registry as dr
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="account:owner@example.com",
+        data={CONF_USERNAME: "owner@example.com", CONF_PASSWORD: "pw"},
+    )
+    existing.add_to_hass(hass)
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=existing.entry_id, identifiers={(DOMAIN, "iot-001")}
+    )
+
+    with patch(
+        "custom_components.neakasa.config_flow._validate_credentials",
+        new=AsyncMock(return_value=([{"iotId": "iot-001"}], None)),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_USERNAME: "shared@example.com", CONF_PASSWORD: "pw"},
+        )
+
+    assert result2["type"] is FlowResultType.ABORT
+    assert result2["reason"] == "devices_already_configured"

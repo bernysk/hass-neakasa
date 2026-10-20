@@ -79,11 +79,13 @@ async def test_async_unload_entry(
             hass.config_entries, "async_unload_platforms", return_value=True
         ) as unload,
         patch("custom_components.neakasa.clear_shared_api") as clear_api,
+        patch("custom_components.neakasa.release_claims") as release,
     ):
         result = await async_unload_entry(hass, mock_config_entry)
         assert result is True
         unload.assert_awaited_once()
         clear_api.assert_called_once()
+        release.assert_called_once_with(hass, mock_config_entry.entry_id)
 
 
 async def test_update_listener_reloads_entry() -> None:

@@ -9,6 +9,7 @@ from homeassistant.const import Platform
 from .api_manager import clear_shared_api
 from .coordinator import NeakasaCoordinator
 from .data import NeakasaConfigEntry, NeakasaData
+from .device_claims import release_claims
 from .migration import async_migrate_entry
 
 if TYPE_CHECKING:
@@ -57,5 +58,6 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     if unload_ok:
         coordinator = entry.runtime_data.coordinator
         clear_shared_api(coordinator.username)
+        release_claims(hass, entry.entry_id)
 
     return unload_ok

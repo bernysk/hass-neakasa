@@ -35,7 +35,8 @@
             "reauth_successful": "Ré-authentication réussie.",
             "reconfigure_successful": "Reconfiguration réussie.",
             "already_configured": "Ce compte Neakasa est déjà configuré.",
-            "wrong_account": "Les identifiants appartiennent à un autre compte Neakasa que cette entrée."
+            "wrong_account": "Les identifiants appartiennent à un autre compte Neakasa que cette entrée.",
+            "devices_already_configured": "Toutes les litières de ce compte sont déjà configurées via une autre entrée Neakasa."
         },
         "error": {
             "authentication": "Utilisateur ou mot de passe invalide.",

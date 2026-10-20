@@ -35,7 +35,8 @@
             "reauth_successful": "Reauthentication successful.",
             "reconfigure_successful": "Reconfiguration successful.",
             "already_configured": "This Neakasa account is already configured.",
-            "wrong_account": "The credentials belong to a different Neakasa account than this entry."
+            "wrong_account": "The credentials belong to a different Neakasa account than this entry.",
+            "devices_already_configured": "All litter boxes on this account are already set up through another Neakasa entry."
         },
         "error": {
             "authentication": "Invalid username or password.",

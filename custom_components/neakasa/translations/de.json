@@ -35,7 +35,8 @@
             "reauth_successful": "Reauthentication successful.",
             "reconfigure_successful": "Reconfiguration successful.",
             "already_configured": "Dieses Neakasa-Konto ist bereits eingerichtet.",
-            "wrong_account": "Die Zugangsdaten gehören zu einem anderen Neakasa-Konto als dieser Eintrag."
+            "wrong_account": "Die Zugangsdaten gehören zu einem anderen Neakasa-Konto als dieser Eintrag.",
+            "devices_already_configured": "Alle Katzentoiletten dieses Kontos sind bereits über einen anderen Neakasa-Eintrag eingerichtet."
         },
         "error": {
             "authentication": "Invalid username or password.",

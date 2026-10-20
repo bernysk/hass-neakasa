@@ -883,3 +883,28 @@ async def test_invoke_service_failure_raises_home_assistant_error(
         await coordinator.invoke_service("iot-001", "level")
 
     assert exc_info.value.translation_key == "service_failed"
+
+
+async def test_discover_devices_skips_devices_managed_elsewhere(
+    hass: HomeAssistant,
+    mock_config_entry: MagicMock,
+    mock_get_shared_api: MagicMock,
+) -> None:
+    """Test that a box another entry already manages is left to that entry."""
+    coordinator = _make_coordinator(hass, mock_config_entry)
+    client = AsyncMock()
+    client.get_devices = AsyncMock(
+        return_value=[
+            {"iotId": "iot-1", "categoryKey": "CatLitter"},
+            {"iotId": "iot-2", "categoryKey": "CatLitter"},
+        ]
+    )
+    coordinator._get_client = AsyncMock(return_value=client)
+
+    with patch(
+        "custom_components.neakasa.coordinator.managed_elsewhere",
+        side_effect=lambda _hass, _entry_id, iot_id: iot_id == "iot-2",
+    ):
+        matched = await coordinator._discover_devices()
+
+    assert [d["iotId"] for d in matched] == ["iot-1"]

@@ -35,7 +35,8 @@
             "reauth_successful": "Reauthentication successful.",
             "reconfigure_successful": "Reconfiguration successful.",
             "already_configured": "To konto Neakasa jest już skonfigurowane.",
-            "wrong_account": "Dane logowania należą do innego konta Neakasa niż ten wpis."
+            "wrong_account": "Dane logowania należą do innego konta Neakasa niż ten wpis.",
+            "devices_already_configured": "Wszystkie kuwety tego konta są już skonfigurowane w innym wpisie Neakasa."
         },
         "error": {
             "authentication": "Invalid username or password.",

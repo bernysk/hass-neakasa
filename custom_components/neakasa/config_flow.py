@@ -12,6 +12,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import NeakasaAPI
 from .api_client import NeakasaApiClient
 from .const import _LOGGER, CONFIG_MINOR_VERSION, CONFIG_VERSION, DOMAIN
+from .device_claims import all_managed
 from .exceptions import (
     NeakasaApiClientAuthenticationError,
     NeakasaApiClientCommunicationError,
@@ -21,11 +22,11 @@ from .options_flow import NeakasaOptionsFlow
 
 async def _validate_credentials(
     hass: Any, username: str, password: str
-) -> tuple[NeakasaApiClient | None, str | None]:
+) -> tuple[list[dict[str, Any]] | None, str | None]:
     """
     Try authenticating with *username* and *password*.
 
-    Returns ``(client, None)`` on success or ``(None, error_key)`` on failure.
+    Returns ``(litter_boxes, None)`` on success or ``(None, error_key)`` on failure.
     """
     try:
         session = async_get_clientsession(hass)
@@ -35,7 +36,7 @@ async def _validate_credentials(
         cat_devices = [d for d in devices if d.get("categoryKey") == "CatLitter"]
         if not cat_devices:
             return None, "no_devices_found"
-        return client, None  # noqa: TRY300
+        return cat_devices, None  # noqa: TRY300
     except NeakasaApiClientAuthenticationError:
         return None, "authentication"
     except NeakasaApiClientCommunicationError:
@@ -68,9 +69,11 @@ class NeakasaConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]  #
             await self.async_set_unique_id(account_uid, raise_on_progress=False)
             self._abort_if_unique_id_configured()
 
-            _client, error = await _validate_credentials(self.hass, username, password)
+            devices, error = await _validate_credentials(self.hass, username, password)
             if error is not None:
                 errors["base"] = error
+            elif devices and all_managed(self.hass, (d["iotId"] for d in devices)):
+                return self.async_abort(reason="devices_already_configured")
             else:
                 _LOGGER.debug(
                     "Account %s validated — credentials accepted",

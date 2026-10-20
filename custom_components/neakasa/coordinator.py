@@ -21,6 +21,7 @@ from .const import (
     DOMAIN,
     MIN_SCAN_INTERVAL,
 )
+from .device_claims import managed_elsewhere
 from .exceptions import (
     NeakasaApiClientAuthenticationError,
     NeakasaApiClientCommunicationError,
@@ -368,6 +369,9 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
             cat_key: str = d.get("categoryKey", "")
             if cat_key in self.KNOWN_PRODUCT_TYPES:
                 iot_id: str = d.get("iotId", "")
+                if managed_elsewhere(self.hass, self.config_entry.entry_id, iot_id):
+                    _LOGGER.debug("Skipping %s, managed by another entry", iot_id)
+                    continue
                 self._device_names[iot_id] = d.get("deviceName") or iot_id
                 self._device_meta[iot_id] = {
                     "category_key": cat_key,

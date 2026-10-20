@@ -3,6 +3,13 @@
 All notable changes to this fork are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- When two Neakasa accounts can see the same litter box (e.g. one shared from the other), only one integration entry manages it. Previously both entries created the same entities, splitting them between the entries and showing each box twice.
+- Adding an account whose litter boxes are all already set up through another entry is refused.
+
 ## [1.6.0] - 2026-10-20
 
 ### Fixed
