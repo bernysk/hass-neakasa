@@ -217,7 +217,7 @@ class NeakasaAPI:
                 self._ali_authentication_token = response_json["data"]["user_info"][
                     "ali_authentication_token"
                 ]
-                await self._encryption.decodeLoginToken(
+                self._encryption.decode_login_token(
                     response_json["data"]["login_token"]
                 )
         except _NETWORK_ERRORS as err:
@@ -466,7 +466,7 @@ class NeakasaAPI:
                 timeout=REQUEST_TIMEOUT,
                 headers={
                     "Request-Id": signature,
-                    "Token": str(await self._encryption.getToken()),
+                    "Token": self._encryption.get_token(),
                     "Uid": self._encryption.uid,
                     "Accept-Language": "en",
                 },

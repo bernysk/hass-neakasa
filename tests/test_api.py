@@ -54,7 +54,7 @@ def _make_api() -> NeakasaAPI:
 
 def _set_encryption(api: NeakasaAPI) -> MagicMock:
     encryption = MagicMock()
-    encryption.getToken = AsyncMock(return_value="enc-token")
+    encryption.get_token = MagicMock(return_value="enc-token")
     encryption.uid = "uid-1"
     encryption.userid = "user-1"
     api._encryption = encryption
@@ -258,13 +258,13 @@ async def test_load_auth_tokens_happy() -> None:
     api = _make_api()
     api.baseurl = "https://web.example.com"
     api._encryption = MagicMock()
-    api._encryption.decodeLoginToken = AsyncMock()
+    api._encryption.decode_login_token = MagicMock()
     api._session.post = MagicMock(
         return_value=_FakeJSONResponse(json_data=_login_payload())
     )
     await api._load_auth_tokens("user@example.com", "password")
     assert api._ali_authentication_token == "ali-token"
-    api._encryption.decodeLoginToken.assert_awaited_once_with("encrypted-login-token")
+    api._encryption.decode_login_token.assert_called_once_with("encrypted-login-token")
 
 
 async def test_load_auth_tokens_http_error() -> None:
