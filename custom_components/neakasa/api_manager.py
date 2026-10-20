@@ -35,11 +35,10 @@ async def get_shared_api(
             del _shared_clients[credentials_key]
 
         session = async_get_clientsession(hass)
-        api = NeakasaAPI(session)
+        client = NeakasaApiClient(NeakasaAPI(session))
         try:
             _LOGGER.debug("Authenticating shared API client for %s", username)
-            await api.connect(username, password)
-            client = NeakasaApiClient(api)
+            await client.connect(username, password)
             _shared_clients[credentials_key] = client
             _LOGGER.debug("Authenticated shared API client for %s", username)
         except Exception:

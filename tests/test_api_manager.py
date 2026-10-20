@@ -27,7 +27,7 @@ def _patched_manager() -> tuple[MagicMock, MagicMock, MagicMock]:
     session = MagicMock()
     api_cls = MagicMock()
     client_cls = MagicMock()
-    api_cls.return_value.connect = AsyncMock()
+    client_cls.return_value.connect = AsyncMock()
     client_cls.return_value.connected = True
     return session, api_cls, client_cls
 
@@ -48,7 +48,7 @@ async def test_get_shared_api_creates_client() -> None:
         result = await get_shared_api(MagicMock(), USER, PASSWORD)
         assert result is client_cls.return_value
         api_cls.assert_called_once()
-        api_cls.return_value.connect.assert_awaited_once_with(USER, PASSWORD)
+        client_cls.return_value.connect.assert_awaited_once_with(USER, PASSWORD)
 
 
 async def test_get_shared_api_reuses_connected_client() -> None:
@@ -67,7 +67,7 @@ async def test_get_shared_api_reuses_connected_client() -> None:
         first = await get_shared_api(MagicMock(), USER, PASSWORD)
         second = await get_shared_api(MagicMock(), USER, PASSWORD)
         assert first is second
-        api_cls.return_value.connect.assert_awaited_once()
+        client_cls.return_value.connect.assert_awaited_once()
 
 
 async def test_get_shared_api_clears_invalid_client() -> None:
@@ -87,12 +87,12 @@ async def test_get_shared_api_clears_invalid_client() -> None:
         client_cls.return_value.connected = False
         result = await get_shared_api(MagicMock(), USER, PASSWORD)
         assert result is client_cls.return_value
-        assert api_cls.return_value.connect.await_count == 2
+        assert client_cls.return_value.connect.await_count == 2
 
 
 async def test_get_shared_api_auth_failure_raises() -> None:
     session, api_cls, client_cls = _patched_manager()
-    api_cls.return_value.connect = AsyncMock(side_effect=RuntimeError("boom"))
+    client_cls.return_value.connect = AsyncMock(side_effect=RuntimeError("boom"))
     with (
         patch(
             "custom_components.neakasa.api_manager.async_get_clientsession",
@@ -124,4 +124,4 @@ async def test_force_reconnect_api() -> None:
         first = await get_shared_api(MagicMock(), USER, PASSWORD)
         second = await force_reconnect_api(MagicMock(), USER, PASSWORD)
         assert first is second
-        assert api_cls.return_value.connect.await_count == 2
+        assert client_cls.return_value.connect.await_count == 2

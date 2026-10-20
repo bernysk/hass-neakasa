@@ -29,9 +29,8 @@ async def _validate_credentials(
     """
     try:
         session = async_get_clientsession(hass)
-        api = NeakasaAPI(session)
-        await api.connect(username, password)
-        client = NeakasaApiClient(api)
+        client = NeakasaApiClient(NeakasaAPI(session))
+        await client.connect(username, password)
         devices = await client.get_devices()
         cat_devices = [d for d in devices if d.get("categoryKey") == "CatLitter"]
         if not cat_devices:

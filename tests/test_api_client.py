@@ -109,3 +109,10 @@ async def test_translate_connection_to_communication() -> None:
     with pytest.raises(NeakasaApiClientCommunicationError):
         async with _translate_errors():
             raise APIConnectionError("network down")
+
+
+async def test_connect_translates_auth_error() -> None:
+    client, api = _make_client()
+    api.connect = AsyncMock(side_effect=APIAuthError("Invalid username or password."))
+    with pytest.raises(NeakasaApiClientAuthenticationError):
+        await client.connect("u", "p")

@@ -50,6 +50,7 @@ async def test_flow_success(
         mock_api.connect = AsyncMock()
 
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(return_value=FAKE_DEVICES)
 
         result = await hass.config_entries.flow.async_init(
@@ -84,6 +85,7 @@ async def test_flow_abort_duplicate(
         mock_api.connect = AsyncMock()
 
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(return_value=FAKE_DEVICES)
 
         # First flow: create entry
@@ -133,6 +135,7 @@ async def test_validate_credentials_success(hass: HomeAssistant) -> None:
     ):
         mock_api_cls.return_value.connect = AsyncMock()
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(return_value=FAKE_DEVICES)
 
         result, error = await _validate_credentials(hass, "user@example.com", "hunter2")
@@ -153,6 +156,7 @@ async def test_validate_credentials_no_devices(hass: HomeAssistant) -> None:
     ):
         mock_api_cls.return_value.connect = AsyncMock()
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(return_value=[])
 
         result, error = await _validate_credentials(hass, "user@example.com", "hunter2")
@@ -176,6 +180,7 @@ async def test_validate_credentials_auth_error(hass: HomeAssistant) -> None:
     ):
         mock_api_cls.return_value.connect = AsyncMock()
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(
             side_effect=NeakasaApiClientAuthenticationError("bad password")
         )
@@ -201,6 +206,7 @@ async def test_validate_credentials_conn_error(hass: HomeAssistant) -> None:
     ):
         mock_api_cls.return_value.connect = AsyncMock()
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(
             side_effect=NeakasaApiClientCommunicationError("network down")
         )
@@ -241,6 +247,7 @@ async def test_flow_success_invalid_credentials(
         mock_api.connect = AsyncMock()
 
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(
             side_effect=NeakasaApiClientAuthenticationError("bad password")
         )
@@ -308,6 +315,7 @@ async def test_reconfigure_flow_success(hass: HomeAssistant) -> None:
     ):
         mock_api_cls.return_value.connect = AsyncMock()
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(return_value=FAKE_DEVICES)
 
         result = await hass.config_entries.flow.async_init(
@@ -354,6 +362,7 @@ async def test_reconfigure_flow_invalid_credentials(
     ):
         mock_api_cls.return_value.connect = AsyncMock()
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(
             side_effect=NeakasaApiClientCommunicationError("down")
         )
@@ -399,6 +408,7 @@ async def test_reauth_flow_success(hass: HomeAssistant) -> None:
     ):
         mock_api_cls.return_value.connect = AsyncMock()
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(return_value=FAKE_DEVICES)
 
         result = await hass.config_entries.flow.async_init(
@@ -445,6 +455,7 @@ async def test_reauth_flow_invalid_credentials(hass: HomeAssistant) -> None:
     ):
         mock_api_cls.return_value.connect = AsyncMock()
         client = mock_client_cls.return_value
+        client.connect = AsyncMock()
         client.get_devices = AsyncMock(
             side_effect=NeakasaApiClientAuthenticationError("bad")
         )
@@ -460,3 +471,19 @@ async def test_reauth_flow_invalid_credentials(hass: HomeAssistant) -> None:
 
     assert result2["type"] is FlowResultType.FORM
     assert result2["errors"]["base"] == "authentication"
+
+
+async def test_validate_credentials_login_rejected(hass: HomeAssistant) -> None:
+    """Test that a rejected login maps to the authentication error key."""
+    from custom_components.neakasa.api import APIAuthError
+    from custom_components.neakasa.config_flow import _validate_credentials
+
+    with patch("custom_components.neakasa.config_flow.NeakasaAPI") as mock_api_cls:
+        mock_api_cls.return_value.connect = AsyncMock(
+            side_effect=APIAuthError("Invalid username or password.")
+        )
+
+        result, error = await _validate_credentials(hass, "user@example.com", "bad")
+
+    assert result is None
+    assert error == "authentication"

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.neakasa.coordinator import (
@@ -585,6 +586,33 @@ async def test_reconnect_and_retry_failure(
             new=AsyncMock(side_effect=NeakasaApiClientCommunicationError("boom")),
         ),
         pytest.raises(UpdateFailed),
+    ):
+        await coordinator._reconnect_and_retry()
+
+
+@pytest.mark.parametrize(
+    ("reconnect_error", "expected"),
+    [
+        (NeakasaApiClientAuthenticationError("bad password"), ConfigEntryAuthFailed),
+        (NeakasaApiClientSessionExpiredError("expired"), UpdateFailed),
+    ],
+)
+async def test_reconnect_and_retry_login_errors(
+    hass: HomeAssistant,
+    mock_config_entry: MagicMock,
+    mock_get_shared_api: MagicMock,
+    reconnect_error: Exception,
+    expected: type[Exception],
+) -> None:
+    """Test that rejected credentials start reauth and other failures do not."""
+    coordinator = _make_coordinator(hass, mock_config_entry)
+
+    with (
+        patch(
+            "custom_components.neakasa.coordinator.force_reconnect_api",
+            new=AsyncMock(side_effect=reconnect_error),
+        ),
+        pytest.raises(expected),
     ):
         await coordinator._reconnect_and_retry()
 

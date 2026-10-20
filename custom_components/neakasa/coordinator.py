@@ -8,6 +8,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api_manager import clear_shared_api, force_reconnect_api, get_shared_api
@@ -407,10 +408,17 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
         Clear the cached API client and retry the update.
 
         Used by session-expiry, auth, and identityId recovery paths.
-        Raises :class:`UpdateFailed` if reconnection itself fails.
+        Raises :class:`ConfigEntryAuthFailed` (which starts the reauth flow) when
+        the credentials are rejected, and :class:`UpdateFailed` otherwise.
         """
         try:
             await force_reconnect_api(self.hass, self.username, self.password)
+        except NeakasaApiClientSessionExpiredError as reconnect_err:
+            msg = "Reconnection failed"
+            raise UpdateFailed(msg) from reconnect_err
+        except NeakasaApiClientAuthenticationError as reconnect_err:
+            msg = f"Failed to log in: {reconnect_err}"
+            raise ConfigEntryAuthFailed(msg) from reconnect_err
         except NeakasaApiClientError as reconnect_err:
             msg = "Reconnection failed"
             raise UpdateFailed(msg) from reconnect_err
@@ -495,16 +503,7 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
 
         except NeakasaApiClientAuthenticationError as err:
             _LOGGER.warning("Authentication error, attempting reconnect: %s", err)
-            try:
-                return await self._reconnect_and_retry()
-            except UpdateFailed:
-                _LOGGER.info(
-                    "Starting reauth flow for entry %s", self.config_entry.entry_id
-                )
-                self.hass.async_create_task(
-                    self.config_entry.async_start_reauth(self.hass)
-                )
-                raise
+            return await self._reconnect_and_retry()
 
         except NeakasaApiClientCommunicationError:
             _LOGGER.debug("IdentityId error, attempting automatic reconnection")
