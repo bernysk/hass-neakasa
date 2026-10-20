@@ -145,5 +145,13 @@
                 }
             }
         }
+    },
+    "exceptions": {
+        "set_property_failed": {
+            "message": "Impossible de modifier le réglage : {error}"
+        },
+        "service_failed": {
+            "message": "Impossible de lancer l'action : {error}"
+        }
     }
 }

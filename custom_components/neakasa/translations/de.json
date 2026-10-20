@@ -145,5 +145,13 @@
                 }
             }
         }
+    },
+    "exceptions": {
+        "set_property_failed": {
+            "message": "Die Einstellung konnte nicht geändert werden: {error}"
+        },
+        "service_failed": {
+            "message": "Die Aktion konnte nicht gestartet werden: {error}"
+        }
     }
 }

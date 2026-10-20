@@ -8,7 +8,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api_manager import clear_shared_api, force_reconnect_api, get_shared_api
@@ -30,6 +30,8 @@ from .exceptions import (
 from .value_cacher import ValueCacher
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
@@ -301,24 +303,49 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
 
     async def set_property(self, iot_id: str, key: str, value: Any) -> None:
         """Set a device property via the Aliyun IoT gateway."""
-        client = await self._get_client()
         wire_key = self._SNAP_TO_WIRE.get(key, key)
-        await client.set_device_properties(iot_id, {wire_key: value})
+        await self._run_command(
+            "set_property_failed",
+            lambda client: client.set_device_properties(iot_id, {wire_key: value}),
+        )
         if self.data and iot_id in self.data:
             setattr(self.data[iot_id], key, value)
             self.async_set_updated_data(self.data)
 
     async def invoke_service(self, iot_id: str, service: str) -> None:
         """Invoke a device service (clean or level)."""
-        client = await self._get_client()
         match service:
             case "clean":
-                await client.clean_now(iot_id)
+                await self._run_command(
+                    "service_failed", lambda client: client.clean_now(iot_id)
+                )
             case "level":
-                await client.sand_leveling(iot_id)
+                await self._run_command(
+                    "service_failed", lambda client: client.sand_leveling(iot_id)
+                )
             case _:
                 msg = f"Unknown service: {service}"
                 raise ValueError(msg)
+
+    async def _run_command(
+        self,
+        translation_key: str,
+        command: Callable[[NeakasaApiClient], Awaitable[None]],
+    ) -> None:
+        """Run a user-triggered command, re-logging in once if the session expired."""
+        try:
+            try:
+                await command(await self._get_client())
+            except NeakasaApiClientSessionExpiredError:
+                await command(
+                    await force_reconnect_api(self.hass, self.username, self.password)
+                )
+        except NeakasaApiClientError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key=translation_key,
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     # ------------------------------------------------------------------
     # Internal helpers

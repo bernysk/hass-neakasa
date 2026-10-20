@@ -145,5 +145,13 @@
                 }
             }
         }
+    },
+    "exceptions": {
+        "set_property_failed": {
+            "message": "Nie udało się zmienić ustawienia: {error}"
+        },
+        "service_failed": {
+            "message": "Nie udało się uruchomić akcji: {error}"
+        }
     }
 }

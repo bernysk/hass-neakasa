@@ -35,8 +35,8 @@ rules:
     comment: Test suite validates coordinator before platform setup.
   unique-config-entry: done
   action-exceptions:
-    status: exempt
-    comment: This integration does not register any service actions.
+    status: done
+    comment: Failed switch and button commands raise HomeAssistantError.
   config-entry-unloading: done
   docs-configuration-parameters:
     status: todo
@@ -86,7 +86,9 @@ rules:
   entity-translations: done
   exception-translations:
     status: todo
-    comment: Raised exceptions do not carry translation keys.
+    comment: >-
+      Command failures are translated; UpdateFailed and ConfigEntryAuthFailed
+      messages are not yet.
   icon-translations:
     status: exempt
     comment: Static MDI icons per entity; no state-based icon mapping needed.

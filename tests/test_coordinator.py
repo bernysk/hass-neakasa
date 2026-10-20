@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.neakasa.coordinator import (
@@ -815,3 +815,65 @@ async def test_coordinator_reads_options(
 
     assert coordinator.update_interval == timedelta(seconds=30)
     assert coordinator._lookback_days == 14
+
+
+async def test_set_property_failure_raises_home_assistant_error(
+    hass: HomeAssistant,
+    mock_config_entry: MagicMock,
+    mock_get_shared_api: MagicMock,
+) -> None:
+    """Test that a failed write surfaces as a translated HomeAssistantError."""
+    coordinator = _make_coordinator(hass, mock_config_entry)
+    client = AsyncMock()
+    client.set_device_properties = AsyncMock(
+        side_effect=NeakasaApiClientCommunicationError("device offline")
+    )
+    coordinator._get_client = AsyncMock(return_value=client)
+
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await coordinator.set_property("iot-001", "child_lock", 1)
+
+    assert exc_info.value.translation_key == "set_property_failed"
+    assert exc_info.value.translation_placeholders == {"error": "device offline"}
+
+
+async def test_invoke_service_relogs_in_once_on_expired_session(
+    hass: HomeAssistant,
+    mock_config_entry: MagicMock,
+    mock_get_shared_api: MagicMock,
+) -> None:
+    """Test that an expired session is renewed before retrying the command."""
+    coordinator = _make_coordinator(hass, mock_config_entry)
+    stale = AsyncMock()
+    stale.clean_now = AsyncMock(
+        side_effect=NeakasaApiClientSessionExpiredError("expired")
+    )
+    fresh = AsyncMock()
+    coordinator._get_client = AsyncMock(return_value=stale)
+
+    with patch(
+        "custom_components.neakasa.coordinator.force_reconnect_api",
+        new=AsyncMock(return_value=fresh),
+    ):
+        await coordinator.invoke_service("iot-001", "clean")
+
+    fresh.clean_now.assert_awaited_once_with("iot-001")
+
+
+async def test_invoke_service_failure_raises_home_assistant_error(
+    hass: HomeAssistant,
+    mock_config_entry: MagicMock,
+    mock_get_shared_api: MagicMock,
+) -> None:
+    """Test that a failed service call surfaces as a HomeAssistantError."""
+    coordinator = _make_coordinator(hass, mock_config_entry)
+    client = AsyncMock()
+    client.sand_leveling = AsyncMock(
+        side_effect=NeakasaApiClientCommunicationError("busy")
+    )
+    coordinator._get_client = AsyncMock(return_value=client)
+
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await coordinator.invoke_service("iot-001", "level")
+
+    assert exc_info.value.translation_key == "service_failed"
