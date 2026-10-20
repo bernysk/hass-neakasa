@@ -62,18 +62,20 @@ class NeakasaCatWeightSensor(CoordinatorEntity[NeakasaCoordinator], SensorEntity
 
     @property
     def _records(self) -> list[dict]:
+        """Return this cat's records, newest first."""
         snap = self._snap
         if snap is None:
             return []
-        return [r for r in snap.record_list if r.get("cat_id") == self._cat_id]
+        records = [r for r in snap.record_list if r.get("cat_id") == self._cat_id]
+        return sorted(records, key=lambda r: r.get("end_time") or 0, reverse=True)
 
     @property
-    def native_value(self) -> float:
-        """Return the most recent weight measurement."""
+    def native_value(self) -> float | None:
+        """Return the most recent weight measurement, or None without one."""
         records = self._records
         if not records:
-            return 0
-        return records[0]["weight"]
+            return None
+        return records[0].get("weight")
 
     @property
     def extra_state_attributes(self) -> dict:

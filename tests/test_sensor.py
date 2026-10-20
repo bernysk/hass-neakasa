@@ -263,7 +263,7 @@ def test_cat_weight_no_records() -> None:
         cat_id="cat-1",
     )
     sensor.hass = MagicMock()
-    assert sensor.native_value == 0
+    assert sensor.native_value is None
     assert sensor.extra_state_attributes == {}
     assert sensor.translation_key == "cat_sensor"
     assert sensor.translation_placeholders == {"name": "Whiskers"}
@@ -285,6 +285,21 @@ def test_cat_weight_matching_record() -> None:
     assert attrs["end_time"] is not None
 
 
+def test_cat_weight_uses_newest_record() -> None:
+    older = {"cat_id": "cat-1", "weight": 4.1, "start_time": 100, "end_time": 200}
+    newer = {"cat_id": "cat-1", "weight": 4.3, "start_time": 300, "end_time": 400}
+    sensor = NeakasaCatWeightSensor(
+        _mock_coord(_cat_weight_snap([older, newer])),
+        FAKE_DEVICE_INFO,
+        "iot-001",
+        cat_name="Mittens",
+        cat_id="cat-1",
+    )
+    sensor.hass = MagicMock()
+    assert sensor.native_value == 4.3
+    assert sensor.extra_state_attributes["end_time"].timestamp() == 400
+
+
 def test_cat_weight_no_matching_cat() -> None:
     sensor = NeakasaCatWeightSensor(
         _mock_coord(_cat_weight_snap(FAKE_RECORDS_LIST)),
@@ -294,7 +309,7 @@ def test_cat_weight_no_matching_cat() -> None:
         cat_id="cat-99",
     )
     sensor.hass = MagicMock()
-    assert sensor.native_value == 0
+    assert sensor.native_value is None
     assert sensor.extra_state_attributes == {}
 
 
@@ -307,7 +322,7 @@ def test_cat_weight_missing_snapshot() -> None:
         cat_id="cat-1",
     )
     sensor.hass = MagicMock()
-    assert sensor.native_value == 0
+    assert sensor.native_value is None
     assert sensor._records == []
 
 
