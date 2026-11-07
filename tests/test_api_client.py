@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from custom_components.neakasa.api import APIAuthError, APIConnectionError
-from custom_components.neakasa.api_client import NeakasaApiClient, _translate_errors
+from custom_components.neakasa.api_client import (
+    NeakasaApiClient,
+    _translate_errors,
+    needs_full_login,
+)
 from custom_components.neakasa.exceptions import (
     NeakasaApiClientAuthenticationError,
     NeakasaApiClientCommunicationError,
@@ -116,3 +120,29 @@ async def test_connect_translates_auth_error() -> None:
     api.connect = AsyncMock(side_effect=APIAuthError("Invalid username or password."))
     with pytest.raises(NeakasaApiClientAuthenticationError):
         await client.connect("u", "p")
+
+
+async def test_translate_web_token_invalid_to_session_expired() -> None:
+    with pytest.raises(NeakasaApiClientSessionExpiredError):
+        async with _translate_errors():
+            raise APIConnectionError(
+                "Error getting data: TokenInvalid\uff1atoken is abnormal"
+            )
+
+
+async def test_translate_login_failure_stays_authentication() -> None:
+    with pytest.raises(NeakasaApiClientAuthenticationError):
+        async with _translate_errors():
+            raise APIAuthError("Error getting sid: auth code rejected")
+
+
+def test_needs_full_login() -> None:
+    assert needs_full_login(Exception("TokenInvalid: token is abnormal"))
+    assert not needs_full_login(Exception("request auth error"))
+
+
+async def test_refresh_session_delegates() -> None:
+    api = MagicMock()
+    api.refresh_session = AsyncMock()
+    await NeakasaApiClient(api).refresh_session()
+    api.refresh_session.assert_awaited_once()

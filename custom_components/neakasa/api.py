@@ -25,6 +25,14 @@ if TYPE_CHECKING:
 _NETWORK_ERRORS = (ClientError, TimeoutError)
 
 
+def _identity_is_blank(data: dict[str, Any]) -> bool:
+    """Return whether the gateway failed to resolve the device identity."""
+    return (
+        data.get("code") != 200
+        and "identityid is blank" in str(data.get("message", "")).lower()
+    )
+
+
 class NeakasaAPI:
     """Async client for Neakasa's cloud API over Aliyun IoT Gateway."""
 
@@ -40,6 +48,8 @@ class NeakasaAPI:
         self._language = language
         self._session = session
         self._encryption = APIEncryption()
+        self._sid: str = ""
+        self._iot_token: str = ""
         self.connected: bool = False
 
     async def connect(
@@ -345,9 +355,38 @@ class NeakasaAPI:
     async def _iot_request(
         self, api_ver: str, pathname: str, params: dict[str, Any]
     ) -> Any:
-        """Internal helper: build + send + parse an IoT Gateway request."""
+        """Send an IoT Gateway request, renewing an aged IoT token once."""
         if not self.connected:
             raise APIConnectionError("api not connected")
+        data = await self._iot_request_once(api_ver, pathname, params)
+        if _identity_is_blank(data):
+            # The gateway resolves the device through the iotToken, so a blank
+            # identityId means the token aged out: renew it (one call, no new
+            # account session) and retry the same request once.
+            _LOGGER.debug("IdentityId blank on %s, renewing the IoT token", pathname)
+            if await self._try_refresh_iot_token():
+                data = await self._iot_request_once(api_ver, pathname, params)
+        if data.get("code") != 200:
+            error_msg = data.get("message", "unknown error")
+            if _identity_is_blank(data):
+                _LOGGER.debug("IdentityId still blank, marking API as disconnected")
+                self.connected = False
+            # Diagnostic: log the full cloud response so we can distinguish
+            # between token-expiry, rate-limiting, and other auth failures.
+            _LOGGER.info(
+                "IoT cloud error — path=%s code=%s message=%r data_keys=%s",
+                pathname,
+                data.get("code"),
+                error_msg,
+                list(data.keys()),
+            )
+            raise APIConnectionError(f"Error in {pathname}: {error_msg}")
+        return data["data"]
+
+    async def _iot_request_once(
+        self, api_ver: str, pathname: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Build, send and parse a single IoT Gateway request."""
         cfg = IoTConfig(
             app_key=self._app_key,
             app_secret=self._app_secret,
@@ -364,24 +403,28 @@ class NeakasaAPI:
             },
             "params": params,
         }
-        data = await self._gateway(client.do_request(pathname, body), pathname)
-        if data.get("code") != 200:
-            error_msg = data.get("message", "unknown error")
-            # Check for specific authentication errors
-            if "identityId is blank" in error_msg:
-                _LOGGER.debug("IdentityId error detected, marking API as disconnected")
-                self.connected = False
-            # Diagnostic: log the full cloud response so we can distinguish
-            # between token-expiry, rate-limiting, and other auth failures.
-            _LOGGER.info(
-                "IoT cloud error — path=%s code=%s message=%r data_keys=%s",
-                pathname,
-                data.get("code"),
-                error_msg,
-                list(data.keys()),
-            )
-            raise APIConnectionError(f"Error in {pathname}: {error_msg}")
-        return data["data"]
+        return await self._gateway(client.do_request(pathname, body), pathname)
+
+    async def _try_refresh_iot_token(self) -> bool:
+        """Renew the IoT token, returning whether it worked instead of raising."""
+        try:
+            await self.refresh_session()
+        except (APIAuthError, APIConnectionError) as err:
+            _LOGGER.warning("IoT token renewal rejected: %s", err)
+            return False
+        return True
+
+    async def refresh_session(self) -> None:
+        """
+        Exchange the current session for a fresh IoT token.
+
+        One call instead of the six a full login needs, and no new account
+        session is minted, so the official app keeps its own login.
+        """
+        if not self._sid:
+            raise APIAuthError("no session to renew")
+        self._iot_token = await self._get_iot_token_by_sid(self._sid)
+        self.connected = True
 
     async def get_product_list(self) -> Any:
         """Fetch the product list for the account."""

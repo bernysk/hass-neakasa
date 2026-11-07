@@ -14,8 +14,19 @@ class ValueCacher:
     """Cache one value, refreshing it when stale and falling back to it on errors."""
 
     def __init__(
-        self, refresh_after: timedelta | None, discard_after: timedelta | None
+        self,
+        refresh_after: timedelta | None,
+        discard_after: timedelta | None,
+        reraise: tuple[type[BaseException], ...] = (),
     ) -> None:
+        """
+        Create the cache.
+
+        Errors of a type in *reraise* always propagate instead of falling back
+        to the cached value, so callers can recover from them (e.g. an expired
+        session) rather than serving stale data until the value is discarded.
+        """
+        self._reraise = reraise
         self._refresh_after = refresh_after
         self._discard_after = discard_after
         self._manually_marked_stale = False
@@ -78,6 +89,8 @@ class ValueCacher:
             if self._inflight is not None:
                 try:
                     return await self._inflight
+                except self._reraise:
+                    raise
                 except Exception:
                     fallback = self.value_if_not_discarded()
                     if fallback is not None:
@@ -89,6 +102,8 @@ class ValueCacher:
                 result = await self._inflight
                 self.set(result)
                 return result
+            except self._reraise:
+                raise
             except Exception:
                 fallback = self.value_if_not_discarded()
                 if fallback is not None:

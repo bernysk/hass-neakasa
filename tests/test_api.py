@@ -750,3 +750,37 @@ async def test_signed_get_not_an_object() -> None:
     api._session.get = MagicMock(return_value=_FakeJSONResponse(json_data=[1]))
     with pytest.raises(APIConnectionError, match="Error getting data: None"):
         await api._signed_get("https://web.example.com/thing", {})
+
+
+async def test_iot_request_identity_blank_renews_token_and_retries(
+    mock_iot_client,
+) -> None:
+    api = _make_api()
+    api.connected = True
+    api._sid = "sid"
+    api._iot_token = "old"
+    api.apiGatewayEndpoint = "api.example.com"
+    with (
+        patch.object(
+            api,
+            "_parse_iot_response",
+            side_effect=[
+                {"code": 500, "message": "identityId is blank"},
+                {"code": 200, "data": {"ok": 1}},
+            ],
+        ),
+        patch.object(
+            api, "_get_iot_token_by_sid", new=AsyncMock(return_value="new")
+        ) as renew,
+    ):
+        result = await api._iot_request("1.0.4", "/thing/properties/get", {})
+    assert result == {"ok": 1}
+    renew.assert_awaited_once_with("sid")
+    assert api._iot_token == "new"
+    assert api.connected is True
+
+
+async def test_refresh_session_without_sid_raises() -> None:
+    api = _make_api()
+    with pytest.raises(APIAuthError):
+        await api.refresh_session()

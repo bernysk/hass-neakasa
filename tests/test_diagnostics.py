@@ -43,7 +43,7 @@ async def test_async_get_config_entry_diagnostics() -> None:
     assert result["entry"]["data"][CONF_USERNAME] == "**REDACTED**"
     assert result["entry"]["data"][CONF_PASSWORD] == "**REDACTED**"
     assert result["entry"]["options"] == {"scan_interval": 60}
-    assert result["coordinator"]["device_ids"] == ["iot-001"]
+    assert result["coordinator"]["device_ids"] == ["**REDACTED**"]
     assert result["coordinator"]["data_device_count"] == 0
     assert "user@example.com" not in str(result)
     assert "hunter2" not in str(result)
