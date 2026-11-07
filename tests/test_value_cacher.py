@@ -181,3 +181,17 @@ async def test_get_or_update_second_caller_hits_cache() -> None:
     results = await asyncio.gather(t1, t2)
     assert results == ["fresh", "fresh"]
     assert calls == 1
+
+
+async def test_get_or_update_reraise_skips_fallback() -> None:
+    cacher = ValueCacher(
+        refresh_after=None, discard_after=None, reraise=(PermissionError,)
+    )
+    cacher.set("fallback")
+    cacher.mark_as_stale()
+
+    async def update() -> str:
+        raise PermissionError("session gone")
+
+    with pytest.raises(PermissionError):
+        await cacher.get_or_update(update)

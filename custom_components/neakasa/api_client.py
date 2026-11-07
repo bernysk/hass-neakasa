@@ -19,6 +19,43 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
 
+# The IoT gateway words a rejected session with "auth"/"session"/"expired";
+# the account web API behind /catbox/record answers "TokenInvalid: token is
+# abnormal". All of them mean the session is gone, not that the network failed.
+_EXPIRED_TOKEN_PHRASES: tuple[str, ...] = (
+    "session",
+    "expired",
+    "auth",
+    "tokeninvalid",
+    "token is abnormal",
+)
+# The web API token comes from the login response itself; renewing the IoT
+# token cannot replace it, only a full login can.
+_WEB_TOKEN_PHRASES: tuple[str, ...] = ("tokeninvalid", "token is abnormal")
+
+
+def _is_expired_token(message: str, *, match_auth: bool = True) -> bool:
+    """
+    Return whether *message* words a rejected token or session.
+
+    A login failure (``APIAuthError``) is checked without the bare ``auth``
+    word, so a rejected password keeps reaching the reauth flow.
+    """
+    lowered = message.lower()
+    phrases = (
+        _EXPIRED_TOKEN_PHRASES
+        if match_auth
+        else tuple(p for p in _EXPIRED_TOKEN_PHRASES if p != "auth")
+    )
+    return any(phrase in lowered for phrase in phrases)
+
+
+def needs_full_login(err: BaseException) -> bool:
+    """Return whether *err* rejects the login token, which only a login renews."""
+    lowered = str(err).lower()
+    return any(phrase in lowered for phrase in _WEB_TOKEN_PHRASES)
+
+
 @asynccontextmanager
 async def _translate_errors() -> AsyncIterator[None]:
     """Map legacy API exceptions into the typed NeakasaApiClientError hierarchy."""
@@ -26,31 +63,31 @@ async def _translate_errors() -> AsyncIterator[None]:
         yield
     except APIAuthError as err:
         message = str(err)
-        if "session" in message.lower() or "expired" in message.lower():
+        if _is_expired_token(message, match_auth=False):
             _LOGGER.info(
                 "Error translation: APIAuthError -> SessionExpired"
-                " (matched session/expired in: %r)",
+                " (matched a token/session phrase in: %r)",
                 message,
             )
             raise NeakasaApiClientSessionExpiredError(message) from err
         _LOGGER.info(
             "Error translation: APIAuthError -> AuthenticationError"
-            " (no session keyword in: %r)",
+            " (no token/session phrase in: %r)",
             message,
         )
         raise NeakasaApiClientAuthenticationError(message) from err
     except APIConnectionError as err:
         message = str(err)
-        if "auth" in message.lower():
+        if _is_expired_token(message):
             _LOGGER.info(
                 "Error translation: APIConnectionError -> SessionExpired"
-                " (matched auth in: %r)",
+                " (matched a token/session phrase in: %r)",
                 message,
             )
             raise NeakasaApiClientSessionExpiredError(message) from err
         _LOGGER.info(
             "Error translation: APIConnectionError -> CommunicationError"
-            " (no auth keyword in: %r)",
+            " (no token/session phrase in: %r)",
             message,
         )
         raise NeakasaApiClientCommunicationError(message) from err
@@ -72,6 +109,11 @@ class NeakasaApiClient:
         """Authenticate, translating errors."""
         async with _translate_errors():
             await self._api.connect(username, password)
+
+    async def refresh_session(self) -> None:
+        """Renew the IoT token without a full login, translating errors."""
+        async with _translate_errors():
+            await self._api.refresh_session()
 
     async def get_devices(self, page_no: int = 1, page_size: int = 20) -> Any:
         """Fetch devices, translating errors."""

@@ -36,7 +36,8 @@ async def async_get_config_entry_diagnostics(
             "options": dict(entry.options),
         },
         "coordinator": {
-            "device_ids": coordinator.device_ids,
+            # Cloud device IDs identify the hardware; keep only how many there are.
+            "device_ids": [REDACTED for _ in coordinator.device_ids],
             "data_device_count": len(coordinator.data) if coordinator.data else 0,
         },
     }

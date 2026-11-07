@@ -146,3 +146,46 @@ async def test_shared_api_is_keyed_by_account_only() -> None:
 
     assert list(api_manager._shared_clients) == [USER]
     assert all(PASSWORD not in key for key in api_manager._shared_locks)
+
+
+async def test_force_reconnect_reuses_client_another_caller_replaced() -> None:
+    session, api_cls, client_cls = _patched_manager()
+    with (
+        patch(
+            "custom_components.neakasa.api_manager.async_get_clientsession",
+            return_value=session,
+        ),
+        patch("custom_components.neakasa.api_manager.NeakasaAPI", api_cls),
+        patch(
+            "custom_components.neakasa.api_manager.NeakasaApiClient",
+            client_cls,
+        ),
+    ):
+        current = await get_shared_api(MagicMock(), USER, PASSWORD)
+        stale = MagicMock()
+        result = await force_reconnect_api(MagicMock(), USER, PASSWORD, stale=stale)
+
+    assert result is current
+    assert client_cls.return_value.connect.await_count == 1
+
+
+async def test_clear_keeps_account_lock() -> None:
+    from custom_components.neakasa import api_manager
+
+    session, api_cls, client_cls = _patched_manager()
+    with (
+        patch(
+            "custom_components.neakasa.api_manager.async_get_clientsession",
+            return_value=session,
+        ),
+        patch("custom_components.neakasa.api_manager.NeakasaAPI", api_cls),
+        patch(
+            "custom_components.neakasa.api_manager.NeakasaApiClient",
+            client_cls,
+        ),
+    ):
+        await get_shared_api(MagicMock(), USER, PASSWORD)
+    lock = api_manager._shared_locks[USER]
+    clear_shared_api(USER)
+    assert api_manager._shared_locks[USER] is lock
+    assert USER not in api_manager._shared_clients

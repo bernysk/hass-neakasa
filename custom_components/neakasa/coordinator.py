@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -11,7 +12,8 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api_manager import clear_shared_api, force_reconnect_api, get_shared_api
+from .api_client import needs_full_login
+from .api_manager import force_reconnect_api, get_shared_api, peek_shared_api
 from .const import (
     _LOGGER,
     CONF_SCAN_INTERVAL,
@@ -41,6 +43,19 @@ if TYPE_CHECKING:
 _clean_cfg_warnings_logged: set[str] = set()
 
 _IDENTITY_ID_BLANK = "identityId is blank"
+
+# A full login mints a new account session, which signs the official Neakasa
+# app out. Renewing the IoT token (one call) is tried first, and automatic full
+# logins are limited to one per window; inside it the update fails and Home
+# Assistant retries on the next poll.
+FULL_LOGIN_COOLDOWN_SECONDS = 600
+
+# Errors the caches must not hide behind a stale value: recovering from them
+# needs the coordinator to see them.
+_RECOVERABLE_ERRORS: tuple[type[BaseException], ...] = (
+    NeakasaApiClientSessionExpiredError,
+    NeakasaApiClientAuthenticationError,
+)
 
 
 @dataclass
@@ -267,6 +282,7 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
         self._device_names: dict[str, str] = {}
         self._device_meta: dict[str, dict[str, str]] = {}
         self._device_ids: list[str] = []
+        self._last_full_login: float | None = None
 
         self._lookback_days = int(
             config_entry.options.get(
@@ -337,14 +353,13 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
         translation_key: str,
         command: Callable[[NeakasaApiClient], Awaitable[None]],
     ) -> None:
-        """Run a user-triggered command, re-logging in once if the session expired."""
+        """Run a user-triggered command, recovering an expired session once."""
         try:
+            client = await self._get_client()
             try:
-                await command(await self._get_client())
-            except NeakasaApiClientSessionExpiredError:
-                await command(
-                    await force_reconnect_api(self.hass, self.username, self.password)
-                )
+                await command(client)
+            except NeakasaApiClientSessionExpiredError as err:
+                await command(await self._recovered_client(client, err))
         except NeakasaApiClientError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
@@ -352,12 +367,62 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
                 translation_placeholders={"error": str(err)},
             ) from err
 
+    async def _recovered_client(
+        self, client: NeakasaApiClient, err: BaseException
+    ) -> NeakasaApiClient:
+        """
+        Return a client with a working session after *err* rejected *client*.
+
+        Renews the IoT token first; logs in again only when that cannot help
+        and the full-login cooldown allows it.
+        """
+        if not client.connected:
+            # Its session is already gone; _get_client logs in (rate-limited).
+            return await self._get_client()
+        if not needs_full_login(err):
+            try:
+                await client.refresh_session()
+            except NeakasaApiClientError as renew_err:
+                _LOGGER.debug("IoT token renewal failed: %s", renew_err)
+            else:
+                _LOGGER.debug("Renewed the IoT token without a new login")
+                return client
+        self._claim_full_login(err)
+        return await force_reconnect_api(
+            self.hass, self.username, self.password, stale=client
+        )
+
+    def _claim_full_login(self, err: BaseException) -> None:
+        """Record a full login, or raise if one happened too recently."""
+        now = time.monotonic()
+        if (
+            self._last_full_login is not None
+            and now - self._last_full_login < FULL_LOGIN_COOLDOWN_SECONDS
+        ):
+            wait = int(FULL_LOGIN_COOLDOWN_SECONDS - (now - self._last_full_login))
+            msg = (
+                f"Session rejected ({err}); not logging in again for {wait}s"
+                " to avoid signing the Neakasa app out"
+            )
+            raise NeakasaApiClientSessionExpiredError(msg) from err
+        self._last_full_login = now
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     async def _get_client(self) -> NeakasaApiClient:
-        """Return the shared API client for this coordinator's credentials."""
+        """
+        Return the shared API client for this coordinator's account.
+
+        A cached client that lost its session needs a new login, which is
+        subject to the full-login cooldown like every other recovery path.
+        """
+        cached = peek_shared_api(self.username)
+        if cached is not None and not cached.connected:
+            self._claim_full_login(
+                NeakasaApiClientSessionExpiredError("cloud session lost")
+            )
         return await get_shared_api(self.hass, self.username, self.password)
 
     async def _discover_devices(self) -> list[dict[str, Any]]:
@@ -387,11 +452,13 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
             self._records_caches[iot_id] = ValueCacher(
                 refresh_after=timedelta(minutes=30),
                 discard_after=timedelta(hours=4),
+                reraise=_RECOVERABLE_ERRORS,
             )
         if iot_id not in self._properties_caches:
             self._properties_caches[iot_id] = ValueCacher(
                 refresh_after=timedelta(seconds=0),
                 discard_after=timedelta(minutes=30),
+                reraise=_RECOVERABLE_ERRORS,
             )
         return self._records_caches[iot_id], self._properties_caches[iot_id]
 
@@ -448,24 +515,23 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
     # Reconnection helpers
     # ------------------------------------------------------------------
 
-    async def _reconnect_and_retry(self) -> NeakasaPayload:
+    async def _reconnect_and_retry(self, err: BaseException) -> NeakasaPayload:
         """
-        Clear the cached API client and retry the update.
+        Restore the session after *err* and retry the update once.
 
-        Used by session-expiry, auth, and identityId recovery paths.
-        Raises :class:`ConfigEntryAuthFailed` (which starts the reauth flow) when
-        the credentials are rejected, and :class:`UpdateFailed` otherwise.
+        Renews the IoT token when that can help, otherwise logs in again
+        (at most once per cooldown window). Raises
+        :class:`ConfigEntryAuthFailed` (which starts the reauth flow) when the
+        credentials are rejected, and :class:`UpdateFailed` otherwise.
         """
         try:
-            await force_reconnect_api(self.hass, self.username, self.password)
-        except NeakasaApiClientSessionExpiredError as reconnect_err:
-            msg = "Reconnection failed"
-            raise UpdateFailed(msg) from reconnect_err
+            client = await self._get_client()
+            await self._recovered_client(client, err)
         except NeakasaApiClientAuthenticationError as reconnect_err:
             msg = f"Failed to log in: {reconnect_err}"
             raise ConfigEntryAuthFailed(msg) from reconnect_err
         except NeakasaApiClientError as reconnect_err:
-            msg = "Reconnection failed"
+            msg = f"Reconnection failed: {reconnect_err}"
             raise UpdateFailed(msg) from reconnect_err
         # Retry once only; going back through async_update_data could reconnect
         # in a tight loop while the cloud keeps rejecting the fresh session.
@@ -475,21 +541,17 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
             msg = f"Failed to fetch device data after reconnect: {retry_err}"
             raise UpdateFailed(msg) from retry_err
 
-    async def _reconnect_clear_and_retry(self) -> NeakasaPayload:
-        """
-        Fully clear the shared API and retry from scratch.
-
-        Used for identityId-blank errors where a partial reconnect is insufficient.
-        """
-        clear_shared_api(self.username)
-        return await self._reconnect_and_retry()
-
     # ------------------------------------------------------------------
     # Main update loop
     # ------------------------------------------------------------------
 
     async def _fetch_all(self) -> NeakasaPayload:
-        """Fetch one snapshot per known device, skipping devices that fail."""
+        """
+        Fetch one snapshot per known device, skipping devices that fail.
+
+        Session, auth and identityId failures of any device are raised so the
+        update recovers the session instead of reporting the device missing.
+        """
         devices = await self._discover_devices()
         self._device_ids = [d["iotId"] for d in devices]
 
@@ -500,6 +562,11 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
 
         payload: NeakasaPayload = {}
         for iot_id, result in zip(self._device_ids, snapshots, strict=False):
+            if isinstance(result, _RECOVERABLE_ERRORS) or (
+                isinstance(result, NeakasaApiClientCommunicationError)
+                and _IDENTITY_ID_BLANK in str(result)
+            ):
+                raise result
             if isinstance(result, BaseException):
                 _LOGGER.error("Failed to fetch device %s: %s", iot_id, result)
                 continue
@@ -533,23 +600,16 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
             return await self._fetch_with_retries()
 
         except NeakasaApiClientSessionExpiredError as err:
-            _LOGGER.warning("Session expired, reconnecting silently: %s", err)
-            try:
-                payload = await self._reconnect_and_retry()
-            except Exception as exc:
-                _LOGGER.warning("Reconnect+retry FAILED after session expiry: %s", exc)
-                raise
-            else:
-                _LOGGER.info(
-                    "Reconnect+retry SUCCEEDED after session expiry — %d devices",
-                    len(payload),
-                )
-                return payload
+            _LOGGER.info("Session expired, recovering: %s", err)
+            return await self._reconnect_and_retry(err)
 
         except NeakasaApiClientAuthenticationError as err:
             _LOGGER.warning("Authentication error, attempting reconnect: %s", err)
-            return await self._reconnect_and_retry()
+            return await self._reconnect_and_retry(err)
 
-        except NeakasaApiClientCommunicationError:
-            _LOGGER.debug("IdentityId error, attempting automatic reconnection")
-            return await self._reconnect_clear_and_retry()
+        except NeakasaApiClientCommunicationError as err:
+            # Only identityId-blank errors get here (others end as UpdateFailed);
+            # the API already tried renewing the IoT token and marked the client
+            # disconnected, so recovery logs in again (rate-limited).
+            _LOGGER.debug("IdentityId still blank after token renewal: %s", err)
+            return await self._reconnect_and_retry(err)
