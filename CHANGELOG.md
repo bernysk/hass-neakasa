@@ -3,6 +3,21 @@
 All notable changes to this fork are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.7.0] - 2026-11-07
+
+### Fixed
+
+- The integration no longer signs the Neakasa app out every few minutes. An expired session is first renewed with one call. A new login, which creates a new account session, happens at most once every 10 minutes.
+- Cat weights and last usage no longer go silently stale for hours when the cloud rejects the login token (`TokenInvalid: token is abnormal`). The integration now logs in again.
+- A session error on a single litter box now triggers recovery instead of the box silently showing as unavailable.
+- Cached values no longer hide an expired session.
+- Clean, Level and switch commands recover from an aged IoT token (`identityId is blank`) instead of failing.
+- Two commands failing at the same moment no longer log in twice.
+- Home Assistant shows the right integration version.
+- Diagnostics downloads no longer contain device IDs, and logs no longer contain the account email.
+
+These fixes are ported from [tabascoz/hass-neakasa](https://github.com/tabascoz/hass-neakasa) (`abddd6f`, `e552ab2`, `9db5675`, `dd3193b`), adapted to this fork's one-entry-per-account design.
+
 ## [1.6.1] - 2026-10-20
 
 ### Fixed

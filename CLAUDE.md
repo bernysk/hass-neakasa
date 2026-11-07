@@ -56,10 +56,19 @@ There is no Aliyun SDK dependency; requests are signed by hand in
 `NeakasaAPI` raises `APIAuthError` / `APIConnectionError`; `NeakasaApiClient`
 translates them into the `exceptions/` hierarchy
 (`NeakasaApiClientAuthenticationError`, `…SessionExpiredError`,
-`…CommunicationError`). The coordinator retries communication errors a few
-times with backoff, re-logs in once on an expired session, and raises
-`ConfigEntryAuthFailed` (which starts reauth) when the credentials are
-rejected. User-triggered commands raise translated `HomeAssistantError`s.
+`…CommunicationError`). The web API's `TokenInvalid: token is abnormal`
+counts as session expiry. The coordinator retries communication errors a few
+times with backoff. On an expired session it first renews the IoT token
+(`refresh_session`, one call), and logs in again only when that fails or
+the login token itself was rejected. Every full login creates a new account
+session, which signs the official app out, so full logins are limited to one
+per `FULL_LOGIN_COOLDOWN_SECONDS` (600 s), including the implicit one in
+`_get_client` when the cached client lost its session. `_iot_request`
+renews the token itself on `identityId is blank`. The caches re-raise
+session and auth errors instead of serving stale values, and device-level
+session errors are not swallowed by `asyncio.gather`. Rejected credentials
+raise `ConfigEntryAuthFailed`, which starts reauth. User-triggered commands
+use the same recovery and raise translated `HomeAssistantError`s.
 
 ### Coordinator data
 
