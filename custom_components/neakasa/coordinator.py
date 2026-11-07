@@ -527,6 +527,11 @@ class NeakasaCoordinator(DataUpdateCoordinator[NeakasaPayload]):
         try:
             client = await self._get_client()
             await self._recovered_client(client, err)
+        except NeakasaApiClientSessionExpiredError as reconnect_err:
+            # A subclass of AuthenticationError, but a rejected or rate-limited
+            # session is not a wrong password: never start reauth for it.
+            msg = f"Reconnection failed: {reconnect_err}"
+            raise UpdateFailed(msg) from reconnect_err
         except NeakasaApiClientAuthenticationError as reconnect_err:
             msg = f"Failed to log in: {reconnect_err}"
             raise ConfigEntryAuthFailed(msg) from reconnect_err
